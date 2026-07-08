@@ -29,7 +29,7 @@
     --radius:16px;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;height:100%;overflow:hidden;overscroll-behavior:none;}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;overscroll-behavior:none;background-color:#EEF4F2;}
   body{
     font-family:'Be Vietnam Pro', system-ui, sans-serif;
     background:
@@ -454,6 +454,13 @@
       <h2 class="section-title">Nhật ký ảnh</h2>
       <div class="polaroid-strip" id="attendanceLog"></div>
 
+      <div id="myStatusCard" style="display:none;">
+        <h2 class="section-title">Trạng thái hôm nay của bạn</h2>
+        <div class="card" id="myStatusContent">
+          <div class="empty-state">Đang tải...</div>
+        </div>
+      </div>
+
       <div id="ownerHistoryCard" style="display:none;">
         <h2 class="section-title">Lịch sử chấm công (Chủ xem)</h2>
         <div class="card">
@@ -617,6 +624,8 @@ async function doLogin(){
     document.querySelector('.tab-btn[data-tab="baocao"]').style.display = currentUser.role === 'Chu' ? 'flex' : 'none';
     document.getElementById('ownerHistoryCard').style.display = currentUser.role === 'Chu' ? 'block' : 'none';
     document.getElementById('traDoHistoryFilter').style.display = currentUser.role === 'Chu' ? 'block' : 'none';
+    document.getElementById('myStatusCard').style.display = currentUser.role === 'Chu' ? 'none' : 'block';
+    if(currentUser.role !== 'Chu') loadMyStatus();
   } catch(err){
     errEl.textContent = 'Không kết nối được server (' + err.message + '). Kiểm tra WEBAPP_URL trong file Index có đúng với link Web App hiện tại (Deploy > Manage deployments) không.';
   }
@@ -740,6 +749,7 @@ document.getElementById('photoInput').addEventListener('change', function(e){
     showBusy('Đang lưu chấm công...');
     try{
       await apiCall('checkinout', { type: pendingCheckType, photo: photoDataUrl });
+      if(currentUser.role !== 'Chu') loadMyStatus();
     } catch(err){
       alert('Không lưu được vào hệ thống: ' + err.message);
     } finally{
@@ -781,6 +791,36 @@ function renderAttendance(){
   `).join('');
 }
 renderAttendance();
+
+// ---------- trạng thái hôm nay (Nhân viên) ----------
+async function loadMyStatus(){
+  const el = document.getElementById('myStatusContent');
+  if(!el) return;
+  try{
+    const r = await apiCall('getCheckInHistory', {});
+    const rec = (r.records || [])[0];
+    if(!rec || !rec.checkIn){
+      el.innerHTML = '<div class="empty-state">Bạn chưa chấm công hôm nay.<br>Nhấn Check-in để bắt đầu ca.</div>';
+    } else if(rec.checkIn && !rec.checkOut){
+      el.innerHTML = `
+        <div class="top-line" style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span class="badge badge-in">Đã check-in</span>
+          <span class="mono" style="font-weight:700;">${rec.checkIn}</span>
+        </div>
+        <div style="font-size:12.5px;color:var(--ink-soft);">Đừng quên Check-out khi hết ca nhé!</div>`;
+    } else {
+      el.innerHTML = `
+        <div class="top-line" style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span class="badge badge-in">${rec.checkIn}</span>
+          <span style="color:var(--ink-soft);">→</span>
+          <span class="badge badge-out">${rec.checkOut}</span>
+        </div>
+        <div style="font-size:12.5px;color:var(--ink-soft);">Bạn đã hoàn thành ca hôm nay${rec.totalHours ? ' · '+rec.totalHours+'h' : ''}.</div>`;
+    }
+  } catch(err){
+    el.innerHTML = `<div class="empty-state">Không tải được: ${err.message}</div>`;
+  }
+}
 
 // ---------- lịch sử chấm công (Chủ) ----------
 async function loadCheckInHistory(){
