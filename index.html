@@ -583,6 +583,20 @@
 // ====== CONFIG ======
 const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwPF2UWOAdaylTUjoCiM7t_Qy2wFEK2u9jaY3icw9AhHrfLuSaZhdHi5Uk1gtjeAWxZQQ/exec';
 
+// ---------- khoá chiều cao khung app bằng JS (đáng tin cậy hơn CSS 100dvh trên vài trình duyệt) ----------
+// Một số điện thoại/Safari tính "100dvh" sai (còn dư khoảng trống dưới thanh tab, lộ màu nền ra ngoài).
+// Đặt chiều cao trực tiếp bằng window.innerHeight (chiều cao thực đang nhìn thấy) để luôn khớp chính xác.
+(function lockAppHeight(){
+  const appEl = document.querySelector('.app');
+  function setH(){
+    if(appEl) appEl.style.height = window.innerHeight + 'px';
+  }
+  setH();
+  window.addEventListener('resize', setH);
+  window.addEventListener('orientationchange', () => setTimeout(setH, 150));
+  if(window.visualViewport) window.visualViewport.addEventListener('resize', setH);
+})();
+
 // ---------- state ----------
 let currentUser = null; // {name, role, pin}
 let attendance = [];   // local session log for display: {name, type:'in'|'out', time, photo}
