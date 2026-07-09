@@ -461,11 +461,29 @@
         </div>
       </div>
 
+      <h2 class="section-title" id="shiftSectionTitle">Ca làm tuần này</h2>
+      <div class="card">
+        <div class="row" style="gap:8px;align-items:center;">
+          <button class="btn btn-ghost btn-sm" onclick="shiftWeekNav(-1)">← Tuần trước</button>
+          <div style="flex:1;text-align:center;font-weight:700;font-size:12.5px;" id="shiftWeekLabel">—</div>
+          <button class="btn btn-ghost btn-sm" onclick="shiftWeekNav(1)">Tuần sau →</button>
+        </div>
+        <div id="shiftGridWrap" style="margin-top:12px;overflow-x:auto;"></div>
+        <button class="btn btn-in btn-full btn-sm" style="margin-top:10px;display:none;" id="saveShiftBtn" onclick="saveShiftWeek()">Lưu ca làm tuần này</button>
+        <div id="shiftSaveResult" style="margin-top:8px;font-size:12.5px;color:var(--ink-soft);"></div>
+      </div>
+
       <div id="ownerHistoryCard" style="display:none;">
         <h2 class="section-title">Lịch sử chấm công (Chủ xem)</h2>
         <div class="card">
-          <label class="field-label">Chọn ngày</label>
-          <input type="date" id="chamCongHistoryDate">
+          <label class="field-label">Từ ngày</label>
+          <input type="date" id="chamCongHistoryFrom">
+          <label class="field-label" style="margin-top:10px;">Đến ngày</label>
+          <input type="date" id="chamCongHistoryTo">
+          <div class="row" style="gap:8px;margin-top:10px;">
+            <button type="button" class="btn btn-ghost btn-sm method-btn selected" id="chamCongFilterAllBtn" onclick="setChamCongFilter('all')">Tất cả</button>
+            <button type="button" class="btn btn-ghost btn-sm method-btn" id="chamCongFilterLateBtn" onclick="setChamCongFilter('late')">Đi muộn</button>
+          </div>
           <button class="btn btn-ghost btn-full btn-sm" style="margin-top:10px;" onclick="loadCheckInHistory()">Xem</button>
           <div id="chamCongHistoryResult" style="margin-top:10px;"></div>
         </div>
@@ -502,10 +520,12 @@
       <div id="traDoHistoryFilter" style="display:none;">
         <h2 class="section-title">Xem lại theo ngày (Chủ xem)</h2>
         <div class="card">
-          <label class="field-label">Chọn ngày</label>
-          <input type="date" id="traDoHistoryDate">
+          <label class="field-label">Từ ngày</label>
+          <input type="date" id="traDoHistoryFrom">
+          <label class="field-label" style="margin-top:10px;">Đến ngày</label>
+          <input type="date" id="traDoHistoryTo">
           <div class="row" style="margin-top:10px; gap:8px;">
-            <button class="btn btn-ghost btn-full btn-sm" onclick="loadReturnNoticesForDate()">Xem ngày này</button>
+            <button class="btn btn-ghost btn-full btn-sm" onclick="loadReturnNoticesForDate()">Xem khoảng ngày này</button>
             <button class="btn btn-ghost btn-full btn-sm" onclick="renderDeliveredOrders()">Về hôm nay</button>
           </div>
         </div>
@@ -521,21 +541,23 @@
 
     <!-- TAB 3: BÁO CÁO -->
     <div class="view" id="view-baocao">
-      <h2 class="section-title">Xem báo cáo theo ngày</h2>
+      <h2 class="section-title">Xem báo cáo theo khoảng ngày</h2>
       <div class="card">
-        <label class="field-label">Chọn ngày</label>
-        <input type="date" id="reportDate">
+        <label class="field-label">Từ ngày</label>
+        <input type="date" id="reportFrom">
+        <label class="field-label" style="margin-top:10px;">Đến ngày</label>
+        <input type="date" id="reportTo">
         <div class="row" style="margin-top:10px; gap:8px;">
-          <button class="btn btn-ghost btn-full btn-sm" onclick="loadReportForDate()">Xem ngày này</button>
+          <button class="btn btn-ghost btn-full btn-sm" onclick="loadReportForDate()">Xem khoảng ngày này</button>
           <button class="btn btn-ghost btn-full btn-sm" onclick="renderReport()">Về hôm nay</button>
         </div>
       </div>
 
       <h2 class="section-title">Tổng quan <span id="reportDateLabel">hôm nay</span></h2>
       <div class="stat-grid">
-        <div class="stat-card">
-          <div class="num" id="statStaff">0</div>
-          <div class="label">Nhân viên đã chấm công</div>
+        <div class="stat-card" style="cursor:pointer;" onclick="goToLateList()">
+          <div class="num" id="statLate" style="color:var(--danger);">0</div>
+          <div class="label">Nhân viên đi muộn →</div>
         </div>
         <div class="stat-card">
           <div class="num" id="statOrders">0</div>
@@ -640,6 +662,7 @@ async function doLogin(){
     document.getElementById('traDoHistoryFilter').style.display = currentUser.role === 'Chu' ? 'block' : 'none';
     document.getElementById('myStatusCard').style.display = currentUser.role === 'Chu' ? 'none' : 'block';
     if(currentUser.role !== 'Chu') loadMyStatus();
+    loadShiftWeek();
   } catch(err){
     errEl.textContent = 'Không kết nối được server (' + err.message + '). Kiểm tra WEBAPP_URL trong file Index có đúng với link Web App hiện tại (Deploy > Manage deployments) không.';
   }
@@ -673,7 +696,7 @@ function toVNDate(isoStr){
 (function initDateInputs(){
   const d = new Date();
   const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  ['chamCongHistoryDate','traDoHistoryDate','reportDate'].forEach(id=>{
+  ['chamCongHistoryFrom','chamCongHistoryTo','traDoHistoryFrom','traDoHistoryTo','reportFrom','reportTo'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.value = iso;
   });
@@ -711,6 +734,7 @@ function switchTab(name){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   if(name==='baocao') renderReport();
   if(name==='donhang') renderDeliveredOrders();
+  if(name==='chamcong') loadShiftWeek();
 }
 
 // ---------- nén ảnh trước khi gửi ----------
@@ -762,8 +786,11 @@ document.getElementById('photoInput').addEventListener('change', function(e){
     renderAttendance();
     showBusy('Đang lưu chấm công...');
     try{
-      await apiCall('checkinout', { type: pendingCheckType, photo: photoDataUrl });
+      const res = await apiCall('checkinout', { type: pendingCheckType, photo: photoDataUrl });
       if(currentUser.role !== 'Chu') loadMyStatus();
+      if(pendingCheckType === 'in' && res.late){
+        alert(`Bạn đã đến muộn ${res.lateMinutes} phút (ca ${res.ca}).`);
+      }
     } catch(err){
       alert('Không lưu được vào hệ thống: ' + err.message);
     } finally{
@@ -807,57 +834,221 @@ function renderAttendance(){
 renderAttendance();
 
 // ---------- trạng thái hôm nay (Nhân viên) ----------
+// Có thể có tối đa 2 dòng hôm nay (Sáng + Chiều) nếu nhân viên làm cả 2 ca -> hiện lần lượt từng ca.
 async function loadMyStatus(){
   const el = document.getElementById('myStatusContent');
   if(!el) return;
   try{
     const r = await apiCall('getCheckInHistory', {});
-    const rec = (r.records || [])[0];
-    if(!rec || !rec.checkIn){
+    const recs = r.records || [];
+    if(recs.length === 0){
       el.innerHTML = '<div class="empty-state">Bạn chưa chấm công hôm nay.<br>Nhấn Check-in để bắt đầu ca.</div>';
-    } else if(rec.checkIn && !rec.checkOut){
-      el.innerHTML = `
-        <div class="top-line" style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-          <span class="badge badge-in">Đã check-in</span>
-          <span class="mono" style="font-weight:700;">${rec.checkIn}</span>
-        </div>
-        <div style="font-size:12.5px;color:var(--ink-soft);">Đừng quên Check-out khi hết ca nhé!</div>`;
-    } else {
-      el.innerHTML = `
-        <div class="top-line" style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-          <span class="badge badge-in">${rec.checkIn}</span>
-          <span style="color:var(--ink-soft);">→</span>
-          <span class="badge badge-out">${rec.checkOut}</span>
-        </div>
-        <div style="font-size:12.5px;color:var(--ink-soft);">Bạn đã hoàn thành ca hôm nay${rec.totalHours ? ' · '+rec.totalHours+'h' : ''}.</div>`;
+      return;
     }
+    el.innerHTML = recs.map(rec => {
+      const lateTag = rec.lateMinutes > 0 ? `<span class="method-tag" style="background:#FDECE6;color:var(--danger);margin-left:6px;">Muộn ${rec.lateMinutes}p</span>` : '';
+      if(rec.checkIn && !rec.checkOut){
+        return `<div style="margin-bottom:8px;">
+          <div class="top-line" style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span class="badge badge-in">${rec.ca || 'Đã check-in'}</span>
+            <span class="mono" style="font-weight:700;">${rec.checkIn}</span>${lateTag}
+          </div>
+          <div style="font-size:12.5px;color:var(--ink-soft);">Đừng quên Check-out khi hết ca nhé!</div>
+        </div>`;
+      }
+      return `<div style="margin-bottom:8px;">
+        <div class="top-line" style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span class="badge badge-in">${rec.ca ? rec.ca+' ' : ''}${rec.checkIn}</span>
+          <span style="color:var(--ink-soft);">→</span>
+          <span class="badge badge-out">${rec.checkOut}</span>${lateTag}
+        </div>
+        <div style="font-size:12.5px;color:var(--ink-soft);">Hoàn thành ca${rec.totalHours ? ' · '+rec.totalHours+'h' : ''}.</div>
+      </div>`;
+    }).join('');
   } catch(err){
     el.innerHTML = `<div class="empty-state">Không tải được: ${err.message}</div>`;
   }
 }
 
 // ---------- lịch sử chấm công (Chủ) ----------
+let chamCongFilter = 'all'; // 'all' | 'late'
+let lastChamCongRecords = [];
+
+function setChamCongFilter(f){
+  chamCongFilter = f;
+  document.getElementById('chamCongFilterAllBtn').classList.toggle('selected', f==='all');
+  document.getElementById('chamCongFilterLateBtn').classList.toggle('selected', f==='late');
+  renderChamCongHistoryList();
+}
+
 async function loadCheckInHistory(){
-  const iso = document.getElementById('chamCongHistoryDate').value;
+  const fromIso = document.getElementById('chamCongHistoryFrom').value;
+  const toIso = document.getElementById('chamCongHistoryTo').value;
   const el = document.getElementById('chamCongHistoryResult');
-  if(!iso){ el.innerHTML = '<div class="empty-state">Vui lòng chọn ngày.</div>'; return; }
+  if(!fromIso || !toIso){ el.innerHTML = '<div class="empty-state">Vui lòng chọn khoảng ngày.</div>'; return; }
   el.innerHTML = 'Đang tải...';
   try{
-    const r = await apiCall('getCheckInHistory', { date: toVNDate(iso) });
-    if(!r.records || r.records.length===0){
-      el.innerHTML = `<div class="empty-state">Không có dữ liệu chấm công ngày ${r.date || toVNDate(iso)}.</div>`;
-      return;
-    }
-    el.innerHTML = r.records.map(rec=>`
-      <div class="delivered-row">
-        <div>
-          <div class="who">${rec.employeeName}</div>
-          <div class="sub">Vào: ${rec.checkIn || '—'} · Ra: ${rec.checkOut || '—'}${rec.totalHours ? ' · ' + rec.totalHours + 'h' : ''}</div>
-        </div>
-      </div>
-    `).join('');
+    const r = await apiCall('getCheckInHistory', { from: toVNDate(fromIso), to: toVNDate(toIso) });
+    lastChamCongRecords = r.records || [];
+    renderChamCongHistoryList();
   } catch(err){
     el.innerHTML = `<div class="empty-state">Không tải được: ${err.message}</div>`;
+  }
+}
+
+function renderChamCongHistoryList(){
+  const el = document.getElementById('chamCongHistoryResult');
+  const records = chamCongFilter === 'late' ? lastChamCongRecords.filter(r => r.lateMinutes > 0) : lastChamCongRecords;
+  if(records.length === 0){
+    el.innerHTML = chamCongFilter === 'late'
+      ? '<div class="empty-state">Không có ai đi muộn trong khoảng ngày này.</div>'
+      : '<div class="empty-state">Không có dữ liệu chấm công.</div>';
+    return;
+  }
+  el.innerHTML = records.map(rec => `
+    <div class="delivered-row">
+      <div>
+        <div class="who">${rec.employeeName}${rec.ca ? ' · '+rec.ca : ''}</div>
+        <div class="sub">${rec.date} · Vào: ${rec.checkIn || '—'} · Ra: ${rec.checkOut || '—'}${rec.totalHours ? ' · ' + rec.totalHours + 'h' : ''}</div>
+      </div>
+      ${rec.lateMinutes > 0 ? `<span class="method-tag" style="background:#FDECE6;color:var(--danger);">Muộn ${rec.lateMinutes}p</span>` : ''}
+    </div>
+  `).join('');
+}
+
+// ---------- sắp xếp ca làm ----------
+let shiftWeekStart = null; // Date - luôn là Thứ 2 đầu tuần đang xem
+let employeeListCache = null;
+
+function mondayOf_(d){
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1 - day);
+  const m = new Date(d);
+  m.setDate(d.getDate() + diff);
+  m.setHours(0,0,0,0);
+  return m;
+}
+function fmtVN_(d){
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+}
+function addDays_(d, n){ const r = new Date(d); r.setDate(r.getDate()+n); return r; }
+function parseVNDateJS_(s){
+  const [d,m,y] = s.split('/');
+  return new Date(Number(y), Number(m)-1, Number(d));
+}
+
+function shiftWeekNav(delta){
+  if(!shiftWeekStart) shiftWeekStart = mondayOf_(new Date());
+  shiftWeekStart = addDays_(shiftWeekStart, delta*7);
+  loadShiftWeek();
+}
+
+async function ensureEmployeeList(){
+  if(employeeListCache) return employeeListCache;
+  try{
+    const r = await apiCall('getEmployees', {});
+    employeeListCache = r.employees || [];
+  } catch(err){
+    employeeListCache = [];
+  }
+  return employeeListCache;
+}
+
+async function loadShiftWeek(){
+  if(!currentUser) return;
+  if(!shiftWeekStart) shiftWeekStart = mondayOf_(new Date());
+  const from = fmtVN_(shiftWeekStart);
+  const to = fmtVN_(addDays_(shiftWeekStart, 6));
+  document.getElementById('shiftWeekLabel').textContent = `${from.slice(0,5)} - ${to}`;
+  const gridWrap = document.getElementById('shiftGridWrap');
+  gridWrap.innerHTML = '<div class="empty-state">Đang tải...</div>';
+  try{
+    const r = await apiCall('getShiftRange', { from, to });
+    await renderShiftWeek(r.rows || [], r.isOwner, from);
+  } catch(err){
+    gridWrap.innerHTML = `<div class="empty-state">Không tải được: ${err.message}</div>`;
+  }
+}
+
+const DAY_LABELS_ = ['CN','T2','T3','T4','T5','T6','T7'];
+
+async function renderShiftWeek(rows, isOwner, fromDateStr){
+  const employees = await ensureEmployeeList();
+  const gridWrap = document.getElementById('shiftGridWrap');
+  const saveBtn = document.getElementById('saveShiftBtn');
+  document.getElementById('shiftSectionTitle').textContent = isOwner ? 'Sắp xếp ca làm (Chủ)' : 'Ca làm tuần này';
+
+  if(employees.length === 0){
+    gridWrap.innerHTML = '<div class="empty-state">Chưa có danh sách nhân viên.</div>';
+    saveBtn.style.display = 'none';
+    return;
+  }
+
+  const start = parseVNDateJS_(fromDateStr);
+  const days = [];
+  for(let i=0;i<7;i++) days.push(addDays_(start, i));
+
+  const shiftMap = {};
+  rows.forEach(r => { shiftMap[r.date+'|'+r.employeeId] = r.shift; });
+
+  if(isOwner){
+    let html = '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
+    html += '<tr><th style="text-align:left;padding:4px 6px 4px 0;position:sticky;left:0;background:#fff;">NV</th>' +
+      days.map(d=>`<th style="padding:4px 2px;min-width:50px;font-weight:700;">${DAY_LABELS_[d.getDay()]}<br><span style="font-weight:400;color:var(--ink-soft);">${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}</span></th>`).join('') + '</tr>';
+    employees.forEach(emp => {
+      html += `<tr><td style="padding:4px 6px 4px 0;font-weight:700;position:sticky;left:0;background:#fff;white-space:nowrap;">${emp.name}</td>`;
+      days.forEach(d => {
+        const dStr = fmtVN_(d);
+        const val = shiftMap[dStr+'|'+emp.employeeId] || '';
+        html += `<td style="padding:2px;">
+          <select data-emp="${emp.employeeId}" data-name="${emp.name}" data-date="${dStr}" style="width:100%;font-size:10px;padding:4px 1px;border-radius:6px;border:1px solid var(--border);background:#FBFDFC;">
+            <option value="" ${val===''?'selected':''}>—</option>
+            <option value="Sáng" ${val==='Sáng'?'selected':''}>Sáng</option>
+            <option value="Chiều" ${val==='Chiều'?'selected':''}>Chiều</option>
+            <option value="Cả 2 ca" ${val==='Cả 2 ca'?'selected':''}>2 ca</option>
+          </select>
+        </td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</table>';
+    gridWrap.innerHTML = html;
+    saveBtn.style.display = 'block';
+  } else {
+    let html = '';
+    days.forEach(d => {
+      const dStr = fmtVN_(d);
+      const dayRows = employees.map(emp => {
+        const val = shiftMap[dStr+'|'+emp.employeeId] || 'Nghỉ';
+        const mine = currentUser && emp.name === currentUser.name;
+        return `<div class="delivered-row" style="margin-bottom:4px;${mine ? 'border:1.5px solid var(--brand);' : ''}">
+          <div class="who" style="font-size:13px;">${emp.name}${mine ? ' (bạn)' : ''}</div>
+          <span class="method-tag">${val}</span>
+        </div>`;
+      }).join('');
+      html += `<div style="margin-bottom:12px;">
+        <div style="font-weight:700;font-size:12px;margin-bottom:5px;color:var(--brand-dark);">${DAY_LABELS_[d.getDay()]} · ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}</div>
+        ${dayRows}
+      </div>`;
+    });
+    gridWrap.innerHTML = html;
+    saveBtn.style.display = 'none';
+  }
+}
+
+async function saveShiftWeek(){
+  const selects = document.querySelectorAll('#shiftGridWrap select');
+  const assignments = [];
+  selects.forEach(sel => {
+    assignments.push({ date: sel.dataset.date, employeeId: sel.dataset.emp, employeeName: sel.dataset.name, shift: sel.value });
+  });
+  const resultEl = document.getElementById('shiftSaveResult');
+  resultEl.textContent = 'Đang lưu...';
+  try{
+    await apiCall('saveShift', { assignments });
+    resultEl.textContent = 'Đã lưu ca làm tuần này.';
+  } catch(err){
+    resultEl.textContent = 'Lỗi: ' + err.message;
   }
 }
 
@@ -916,20 +1107,22 @@ async function sendReturnNotice(){
 }
 
 // ---------- đã trả đồ hôm nay ----------
-let currentDeliveredDate = null;
+let currentDeliveredRange = null; // {from,to} hoặc null (nghĩa là hôm nay)
 let deliveredFilter = 'all'; // 'all' | 'unconfirmed'
 let lastDeliveredNotices = [];
 let lastDeliveredIsOwner = false;
 
-async function renderDeliveredOrders(dateOverride){
+async function renderDeliveredOrders(rangeOverride){
   if(!currentUser) return;
-  currentDeliveredDate = dateOverride || null;
+  currentDeliveredRange = rangeOverride || null;
   const el = document.getElementById('deliveredList');
   const titleEl = document.getElementById('deliveredListTitle');
   try{
-    const params = dateOverride ? { date: dateOverride } : {};
+    const params = rangeOverride ? { from: rangeOverride.from, to: rangeOverride.to } : {};
     const r = await apiCall('getReturnNotices', params);
-    if(titleEl) titleEl.textContent = dateOverride ? `Đã trả đồ ngày ${dateOverride}` : 'Đã trả đồ hôm nay';
+    if(titleEl) titleEl.textContent = rangeOverride
+      ? (rangeOverride.from === rangeOverride.to ? `Đã trả đồ ngày ${rangeOverride.from}` : `Đã trả đồ ${rangeOverride.from} - ${rangeOverride.to}`)
+      : 'Đã trả đồ hôm nay';
     lastDeliveredNotices = r.notices || [];
     lastDeliveredIsOwner = r.isOwner;
     renderDeliveredList();
@@ -954,7 +1147,7 @@ function renderDeliveredList(){
   if(notices.length===0){
     el.innerHTML = deliveredFilter==='unconfirmed'
       ? '<div class="empty-state">Không có đơn nào chưa xác nhận.</div>'
-      : `<div class="empty-state">Chưa có thông báo trả đồ nào${currentDeliveredDate ? ' ngày '+currentDeliveredDate : ' hôm nay'}.</div>`;
+      : `<div class="empty-state">Chưa có thông báo trả đồ nào${currentDeliveredRange ? ' trong khoảng thời gian này' : ' hôm nay'}.</div>`;
     return;
   }
   el.innerHTML = notices.map(o=>`
@@ -976,29 +1169,32 @@ function renderDeliveredList(){
 async function toggleConfirm(orderId, newVal){
   try{
     await apiCall('confirmPayment', { orderId, confirmed: newVal });
-    renderDeliveredOrders(currentDeliveredDate);
+    renderDeliveredOrders(currentDeliveredRange);
   } catch(err){
     alert('Không xác nhận được: ' + err.message);
   }
 }
 
 function loadReturnNoticesForDate(){
-  const iso = document.getElementById('traDoHistoryDate').value;
-  if(!iso){ alert('Vui lòng chọn ngày.'); return; }
-  renderDeliveredOrders(toVNDate(iso));
+  const fromIso = document.getElementById('traDoHistoryFrom').value;
+  const toIso = document.getElementById('traDoHistoryTo').value;
+  if(!fromIso || !toIso){ alert('Vui lòng chọn khoảng ngày.'); return; }
+  renderDeliveredOrders({ from: toVNDate(fromIso), to: toVNDate(toIso) });
 }
 
 // ---------- báo cáo ----------
-let reportCurrentDate = null;
-async function renderReport(dateOverride){
-  reportCurrentDate = dateOverride || null;
-  const statEls = ['statStaff','statOrders','statRevenue','statUnconfirmed'].map(id=>document.getElementById(id));
+let reportCurrentRange = null;
+async function renderReport(rangeOverride){
+  reportCurrentRange = rangeOverride || null;
+  const statEls = ['statLate','statOrders','statRevenue','statUnconfirmed'].map(id=>document.getElementById(id));
   statEls.forEach(el=>el.textContent = '…');
   try{
-    const params = dateOverride ? { date: dateOverride } : {};
+    const params = rangeOverride ? { from: rangeOverride.from, to: rangeOverride.to } : {};
     const r = await apiCall('getReport', params);
-    document.getElementById('reportDateLabel').textContent = dateOverride ? `ngày ${dateOverride}` : 'hôm nay';
-    document.getElementById('statStaff').textContent = r.staffCount || 0;
+    document.getElementById('reportDateLabel').textContent = rangeOverride
+      ? (rangeOverride.from === rangeOverride.to ? `ngày ${rangeOverride.from}` : `${rangeOverride.from} - ${rangeOverride.to}`)
+      : 'hôm nay';
+    document.getElementById('statLate').textContent = r.lateCount || 0;
     document.getElementById('statOrders').textContent = r.orderCount || 0;
     document.getElementById('statRevenue').textContent = (r.revenue || 0).toLocaleString('vi-VN')+'đ';
     document.getElementById('statUnconfirmed').textContent = r.unconfirmedCount || 0;
@@ -1007,23 +1203,43 @@ async function renderReport(dateOverride){
   }
 }
 
-// Bấm vào thẻ "chưa xác nhận" ở Báo cáo -> nhảy sang tab Trả đồ, tự lọc đúng ngày đang xem + trạng thái chưa xác nhận.
+// Bấm vào thẻ "chưa xác nhận" ở Báo cáo -> nhảy sang tab Trả đồ, tự lọc đúng khoảng ngày đang xem + trạng thái chưa xác nhận.
 function goToUnconfirmed(){
-  const dateToUse = reportCurrentDate;
+  const rangeToUse = reportCurrentRange;
   switchTab('donhang');
-  if(dateToUse){
-    const [d,m,y] = dateToUse.split('/');
-    const dateInput = document.getElementById('traDoHistoryDate');
-    if(dateInput) dateInput.value = `${y}-${m}-${d}`;
+  if(rangeToUse){
+    const [d1,m1,y1] = rangeToUse.from.split('/');
+    const [d2,m2,y2] = rangeToUse.to.split('/');
+    const fromInput = document.getElementById('traDoHistoryFrom');
+    const toInput = document.getElementById('traDoHistoryTo');
+    if(fromInput) fromInput.value = `${y1}-${m1}-${d1}`;
+    if(toInput) toInput.value = `${y2}-${m2}-${d2}`;
   }
   setDeliveredFilter('unconfirmed');
-  renderDeliveredOrders(dateToUse);
+  renderDeliveredOrders(rangeToUse);
+}
+
+// Bấm vào thẻ "nhân viên đi muộn" ở Báo cáo -> nhảy sang tab Chấm công, tự lọc đúng khoảng ngày đang xem + trạng thái đi muộn.
+function goToLateList(){
+  const rangeToUse = reportCurrentRange;
+  switchTab('chamcong');
+  if(rangeToUse){
+    const [d1,m1,y1] = rangeToUse.from.split('/');
+    const [d2,m2,y2] = rangeToUse.to.split('/');
+    const fromInput = document.getElementById('chamCongHistoryFrom');
+    const toInput = document.getElementById('chamCongHistoryTo');
+    if(fromInput) fromInput.value = `${y1}-${m1}-${d1}`;
+    if(toInput) toInput.value = `${y2}-${m2}-${d2}`;
+  }
+  setChamCongFilter('late');
+  loadCheckInHistory();
 }
 
 function loadReportForDate(){
-  const iso = document.getElementById('reportDate').value;
-  if(!iso){ alert('Vui lòng chọn ngày.'); return; }
-  renderReport(toVNDate(iso));
+  const fromIso = document.getElementById('reportFrom').value;
+  const toIso = document.getElementById('reportTo').value;
+  if(!fromIso || !toIso){ alert('Vui lòng chọn khoảng ngày.'); return; }
+  renderReport({ from: toVNDate(fromIso), to: toVNDate(toIso) });
 }
 </script>
 </body>
