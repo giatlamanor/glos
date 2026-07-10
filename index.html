@@ -539,7 +539,59 @@
       <div id="deliveredList"></div>
     </div>
 
-    <!-- TAB 3: BÁO CÁO -->
+    <!-- TAB 3: CHI PHÍ (Chủ) -->
+    <div class="view" id="view-chiphi">
+      <h2 class="section-title">Ghi chi phí mới</h2>
+      <div class="card">
+        <label class="field-label">Loại chi phí</label>
+        <select id="expenseCategory">
+          <option>Nguyên vật liệu</option>
+          <option>Điện</option>
+          <option>Nước</option>
+          <option>Thuê mặt bằng</option>
+          <option>Bảo trì/sửa chữa máy</option>
+          <option>Vận chuyển</option>
+          <option>Thuê ngoài</option>
+          <option>Lương nhân viên</option>
+          <option>Khác</option>
+        </select>
+
+        <label class="field-label" style="margin-top:12px;">Số tiền (VNĐ)</label>
+        <input type="number" id="expenseAmount" placeholder="VD: 500000">
+
+        <label class="field-label" style="margin-top:12px;">Chi tiết</label>
+        <input type="text" id="expenseNote" placeholder="VD: Mua bột giặt Omo 5kg x10 gói">
+
+        <button class="btn btn-in btn-full" style="margin-top:14px;" onclick="sendExpense()">Lưu chi phí</button>
+      </div>
+
+      <h2 class="section-title">Lịch sử chi phí</h2>
+      <div class="card">
+        <label class="field-label">Từ ngày</label>
+        <input type="date" id="expenseHistoryFrom">
+        <label class="field-label" style="margin-top:10px;">Đến ngày</label>
+        <input type="date" id="expenseHistoryTo">
+        <label class="field-label" style="margin-top:10px;">Loại chi phí</label>
+        <select id="expenseCategoryFilter">
+          <option value="all">Tất cả danh mục</option>
+          <option>Nguyên vật liệu</option>
+          <option>Điện</option>
+          <option>Nước</option>
+          <option>Thuê mặt bằng</option>
+          <option>Bảo trì/sửa chữa máy</option>
+          <option>Vận chuyển</option>
+          <option>Thuê ngoài</option>
+          <option>Lương nhân viên</option>
+          <option>Khác</option>
+        </select>
+        <button class="btn btn-ghost btn-full btn-sm" style="margin-top:10px;" onclick="loadExpenseHistory()">Xem</button>
+      </div>
+
+      <h2 class="section-title">Tổng chi phí: <span id="expenseTotalLabel">0đ</span></h2>
+      <div id="expenseHistoryResult"></div>
+    </div>
+
+    <!-- TAB 4: BÁO CÁO -->
     <div class="view" id="view-baocao">
       <h2 class="section-title">Xem báo cáo theo khoảng ngày</h2>
       <div class="card">
@@ -567,6 +619,14 @@
           <div class="num" id="statRevenue">0đ</div>
           <div class="label">Doanh thu đã thu</div>
         </div>
+        <div class="stat-card" style="cursor:pointer;" onclick="goToExpenseList()">
+          <div class="num" id="statExpense" style="color:var(--danger);">0đ</div>
+          <div class="label">Chi phí →</div>
+        </div>
+        <div class="stat-card" style="grid-column:1 / -1;">
+          <div class="num" id="statProfit">0đ</div>
+          <div class="label">Lợi nhuận (Doanh thu − Chi phí)</div>
+        </div>
         <div class="stat-card" style="grid-column:1 / -1; cursor:pointer;" onclick="goToUnconfirmed()">
           <div class="num" id="statUnconfirmed" style="color:var(--pending);">0</div>
           <div class="label">Đã trả tiền nhưng Chủ chưa xác nhận →</div>
@@ -592,6 +652,10 @@
     <button class="tab-btn" data-tab="donhang" onclick="switchTab('donhang')">
       <svg viewBox="0 0 24 24" fill="none"><path d="M4 8h3l1.5-2.5h7L17 8h3v11H4V8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="3" stroke="currentColor" stroke-width="1.8"/></svg>
       Trả đồ
+    </button>
+    <button class="tab-btn" data-tab="chiphi" onclick="switchTab('chiphi')" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3 10h18M16 14h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      Chi phí
     </button>
     <button class="tab-btn" data-tab="baocao" onclick="switchTab('baocao')" style="display:none;">
       <svg viewBox="0 0 24 24" fill="none"><path d="M5 19V10M12 19V5M19 19v-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -658,6 +722,7 @@ async function doLogin(){
     document.getElementById('whoName').textContent = currentUser.name;
     document.getElementById('whoRole').textContent = currentUser.role === 'Chu' ? 'Chủ' : 'Nhân viên';
     document.querySelector('.tab-btn[data-tab="baocao"]').style.display = currentUser.role === 'Chu' ? 'flex' : 'none';
+    document.querySelector('.tab-btn[data-tab="chiphi"]').style.display = currentUser.role === 'Chu' ? 'flex' : 'none';
     document.getElementById('ownerHistoryCard').style.display = currentUser.role === 'Chu' ? 'block' : 'none';
     document.getElementById('traDoHistoryFilter').style.display = currentUser.role === 'Chu' ? 'block' : 'none';
     document.getElementById('myStatusCard').style.display = currentUser.role === 'Chu' ? 'none' : 'block';
@@ -696,7 +761,7 @@ function toVNDate(isoStr){
 (function initDateInputs(){
   const d = new Date();
   const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  ['chamCongHistoryFrom','chamCongHistoryTo','traDoHistoryFrom','traDoHistoryTo','reportFrom','reportTo'].forEach(id=>{
+  ['chamCongHistoryFrom','chamCongHistoryTo','traDoHistoryFrom','traDoHistoryTo','reportFrom','reportTo','expenseHistoryFrom','expenseHistoryTo'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.value = iso;
   });
@@ -728,7 +793,7 @@ async function runPayroll(){
 
 // ---------- tabs ----------
 function switchTab(name){
-  if(name==='baocao' && (!currentUser || currentUser.role!=='Chu')) return;
+  if((name==='baocao' || name==='chiphi') && (!currentUser || currentUser.role!=='Chu')) return;
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-'+name).classList.add('active');
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
@@ -1186,7 +1251,7 @@ function loadReturnNoticesForDate(){
 let reportCurrentRange = null;
 async function renderReport(rangeOverride){
   reportCurrentRange = rangeOverride || null;
-  const statEls = ['statLate','statOrders','statRevenue','statUnconfirmed'].map(id=>document.getElementById(id));
+  const statEls = ['statLate','statOrders','statRevenue','statExpense','statProfit','statUnconfirmed'].map(id=>document.getElementById(id));
   statEls.forEach(el=>el.textContent = '…');
   try{
     const params = rangeOverride ? { from: rangeOverride.from, to: rangeOverride.to } : {};
@@ -1197,6 +1262,11 @@ async function renderReport(rangeOverride){
     document.getElementById('statLate').textContent = r.lateCount || 0;
     document.getElementById('statOrders').textContent = r.orderCount || 0;
     document.getElementById('statRevenue').textContent = (r.revenue || 0).toLocaleString('vi-VN')+'đ';
+    document.getElementById('statExpense').textContent = (r.totalExpense || 0).toLocaleString('vi-VN')+'đ';
+    const profitEl = document.getElementById('statProfit');
+    const profit = r.profit || 0;
+    profitEl.textContent = profit.toLocaleString('vi-VN')+'đ';
+    profitEl.style.color = profit >= 0 ? 'var(--brand-dark)' : 'var(--danger)';
     document.getElementById('statUnconfirmed').textContent = r.unconfirmedCount || 0;
   } catch(err){
     statEls.forEach(el=>el.textContent = '—');
@@ -1240,6 +1310,84 @@ function loadReportForDate(){
   const toIso = document.getElementById('reportTo').value;
   if(!fromIso || !toIso){ alert('Vui lòng chọn khoảng ngày.'); return; }
   renderReport({ from: toVNDate(fromIso), to: toVNDate(toIso) });
+}
+
+// Bấm vào thẻ "Chi phí" ở Báo cáo -> nhảy sang tab Chi phí, tự lọc đúng khoảng ngày đang xem (tất cả danh mục).
+function goToExpenseList(){
+  const rangeToUse = reportCurrentRange;
+  switchTab('chiphi');
+  if(rangeToUse){
+    const [d1,m1,y1] = rangeToUse.from.split('/');
+    const [d2,m2,y2] = rangeToUse.to.split('/');
+    const fromInput = document.getElementById('expenseHistoryFrom');
+    const toInput = document.getElementById('expenseHistoryTo');
+    if(fromInput) fromInput.value = `${y1}-${m1}-${d1}`;
+    if(toInput) toInput.value = `${y2}-${m2}-${d2}`;
+  }
+  document.getElementById('expenseCategoryFilter').value = 'all';
+  loadExpenseHistory();
+}
+
+// ---------- chi phí ----------
+async function sendExpense(){
+  if(!currentUser){ alert('Vui lòng đăng nhập trước.'); return; }
+  const category = document.getElementById('expenseCategory').value;
+  const amount = parseInt(document.getElementById('expenseAmount').value.replace(/\D/g,'')) || 0;
+  if(!amount){ alert('Vui lòng nhập số tiền.'); return; }
+  const note = document.getElementById('expenseNote').value.trim();
+
+  showBusy('Đang lưu chi phí...');
+  try{
+    await apiCall('createExpense', { category, amount, note });
+    document.getElementById('expenseAmount').value = '';
+    document.getElementById('expenseNote').value = '';
+    loadExpenseHistory();
+  } catch(err){
+    alert('Không lưu được chi phí: ' + err.message);
+  } finally{
+    hideBusy();
+  }
+}
+
+let lastExpenseRows = [];
+
+async function loadExpenseHistory(){
+  if(!currentUser) return;
+  const fromIso = document.getElementById('expenseHistoryFrom').value;
+  const toIso = document.getElementById('expenseHistoryTo').value;
+  const category = document.getElementById('expenseCategoryFilter').value;
+  const el = document.getElementById('expenseHistoryResult');
+  if(!fromIso || !toIso){ el.innerHTML = '<div class="empty-state">Vui lòng chọn khoảng ngày.</div>'; return; }
+  el.innerHTML = 'Đang tải...';
+  try{
+    const params = { from: toVNDate(fromIso), to: toVNDate(toIso) };
+    if(category && category !== 'all') params.category = category;
+    const r = await apiCall('getExpenses', params);
+    lastExpenseRows = r.rows || [];
+    renderExpenseList();
+  } catch(err){
+    el.innerHTML = `<div class="empty-state">Không tải được: ${err.message}</div>`;
+  }
+}
+
+function renderExpenseList(){
+  const el = document.getElementById('expenseHistoryResult');
+  const totalLabelEl = document.getElementById('expenseTotalLabel');
+  const total = lastExpenseRows.reduce((s,r)=>s+(r.amount||0),0);
+  totalLabelEl.textContent = total.toLocaleString('vi-VN')+'đ';
+  if(lastExpenseRows.length === 0){
+    el.innerHTML = '<div class="empty-state">Không có chi phí nào trong khoảng ngày này.</div>';
+    return;
+  }
+  el.innerHTML = lastExpenseRows.map(r=>`
+    <div class="delivered-row">
+      <div>
+        <div class="who">${r.category}</div>
+        <div class="sub">${r.date}${r.note ? ' · '+r.note : ''}${r.employeeName ? ' · '+r.employeeName : ''}</div>
+      </div>
+      <div class="mono" style="font-weight:700;color:var(--danger);white-space:nowrap;">${(r.amount||0).toLocaleString('vi-VN')}đ</div>
+    </div>
+  `).join('');
 }
 </script>
 </body>
