@@ -1110,15 +1110,19 @@ async function renderShiftWeek(rows, isOwner, fromDateStr){
   const shiftMap = {};
   rows.forEach(r => { shiftMap[r.date+'|'+r.employeeId] = r.shift; });
 
-  if(isOwner){
-    let html = '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
-    html += '<tr><th style="text-align:left;padding:4px 6px 4px 0;position:sticky;left:0;background:#fff;">NV</th>' +
-      days.map(d=>`<th style="padding:4px 2px;min-width:50px;font-weight:700;">${DAY_LABELS_[d.getDay()]}<br><span style="font-weight:400;color:var(--ink-soft);">${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}</span></th>`).join('') + '</tr>';
-    employees.forEach(emp => {
-      html += `<tr><td style="padding:4px 6px 4px 0;font-weight:700;position:sticky;left:0;background:#fff;white-space:nowrap;">${emp.name}</td>`;
-      days.forEach(d => {
-        const dStr = fmtVN_(d);
-        const val = shiftMap[dStr+'|'+emp.employeeId] || '';
+  // Nhân viên xem CÙNG bảng lưới ngày × nhân viên như Chủ (chỉ đọc, không có <select>) —
+  // vẫn thấy được lịch của cả cửa hàng và có thể chuyển tuần trước/sau như bình thường.
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
+  html += '<tr><th style="text-align:left;padding:4px 6px 4px 0;position:sticky;left:0;background:#fff;">NV</th>' +
+    days.map(d=>`<th style="padding:4px 2px;min-width:50px;font-weight:700;">${DAY_LABELS_[d.getDay()]}<br><span style="font-weight:400;color:var(--ink-soft);">${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}</span></th>`).join('') + '</tr>';
+  employees.forEach(emp => {
+    const mine = !isOwner && currentUser && emp.name === currentUser.name;
+    const rowBg = mine ? '#E4F3EC' : '#fff';
+    html += `<tr${mine ? ' style="background:#E4F3EC;"' : ''}><td style="padding:4px 6px 4px 0;font-weight:700;position:sticky;left:0;background:${rowBg};white-space:nowrap;">${emp.name}${mine ? ' (bạn)' : ''}</td>`;
+    days.forEach(d => {
+      const dStr = fmtVN_(d);
+      const val = shiftMap[dStr+'|'+emp.employeeId] || '';
+      if(isOwner){
         html += `<td style="padding:2px;">
           <select data-emp="${emp.employeeId}" data-name="${emp.name}" data-date="${dStr}" style="width:100%;font-size:10px;padding:4px 1px;border-radius:6px;border:1px solid var(--border);background:#FBFDFC;">
             <option value="" ${val===''?'selected':''}>—</option>
@@ -1127,32 +1131,15 @@ async function renderShiftWeek(rows, isOwner, fromDateStr){
             <option value="Cả 2 ca" ${val==='Cả 2 ca'?'selected':''}>2 ca</option>
           </select>
         </td>`;
-      });
-      html += '</tr>';
+      } else {
+        html += `<td style="padding:6px 2px;text-align:center;font-size:10.5px;font-weight:${val?'700':'400'};color:${val?'var(--brand-dark)':'var(--ink-soft)'};">${val || '—'}</td>`;
+      }
     });
-    html += '</table>';
-    gridWrap.innerHTML = html;
-    saveBtn.style.display = 'block';
-  } else {
-    let html = '';
-    days.forEach(d => {
-      const dStr = fmtVN_(d);
-      const dayRows = employees.map(emp => {
-        const val = shiftMap[dStr+'|'+emp.employeeId] || 'Nghỉ';
-        const mine = currentUser && emp.name === currentUser.name;
-        return `<div class="delivered-row" style="margin-bottom:4px;${mine ? 'border:1.5px solid var(--brand);' : ''}">
-          <div class="who" style="font-size:13px;">${emp.name}${mine ? ' (bạn)' : ''}</div>
-          <span class="method-tag">${val}</span>
-        </div>`;
-      }).join('');
-      html += `<div style="margin-bottom:12px;">
-        <div style="font-weight:700;font-size:12px;margin-bottom:5px;color:var(--brand-dark);">${DAY_LABELS_[d.getDay()]} · ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}</div>
-        ${dayRows}
-      </div>`;
-    });
-    gridWrap.innerHTML = html;
-    saveBtn.style.display = 'none';
-  }
+    html += '</tr>';
+  });
+  html += '</table>';
+  gridWrap.innerHTML = html;
+  saveBtn.style.display = isOwner ? 'block' : 'none';
 }
 
 async function saveShiftWeek(){
