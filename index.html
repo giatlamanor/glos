@@ -473,8 +473,8 @@
         <div id="shiftSaveResult" style="margin-top:8px;font-size:12.5px;color:var(--ink-soft);"></div>
       </div>
 
-      <div id="ownerHistoryCard" style="display:none;">
-        <h2 class="section-title">Lịch sử chấm công (Chủ xem)</h2>
+      <div id="ownerHistoryCard">
+        <h2 class="section-title" id="chamCongHistoryTitle">Lịch sử chấm công</h2>
         <div class="card">
           <label class="field-label">Từ ngày</label>
           <input type="date" id="chamCongHistoryFrom">
@@ -485,6 +485,7 @@
             <button type="button" class="btn btn-ghost btn-sm method-btn" id="chamCongFilterLateBtn" onclick="setChamCongFilter('late')">Đi muộn</button>
           </div>
           <button class="btn btn-ghost btn-full btn-sm" style="margin-top:10px;" onclick="loadCheckInHistory()">Xem</button>
+          <div id="lateSummaryWrap" style="margin-top:10px;"></div>
           <div id="chamCongHistoryResult" style="margin-top:10px;"></div>
         </div>
       </div>
@@ -492,7 +493,7 @@
 
     <!-- TAB 2: TRẢ ĐỒ -->
     <div class="view" id="view-donhang">
-      <h2 class="section-title">Thông báo trả đồ cho khách</h2>
+      <h2 class="section-title" id="donhangFormTitle">Thông báo trả đồ cho khách</h2>
       <div class="card">
         <label class="field-label">Tên khách hàng</label>
         <input type="text" id="customerName" placeholder="VD: A. Huy 031">
@@ -514,7 +515,10 @@
         <input type="file" id="billPhotoInput" accept="image/*" capture="environment">
         <div id="billPreviewWrap"></div>
 
-        <button class="btn btn-in btn-full" style="margin-top:14px;" onclick="sendReturnNotice()">Gửi thông báo trả đồ</button>
+        <div class="row" style="margin-top:14px; gap:8px;">
+          <button class="btn btn-in btn-full" id="donhangSaveBtn" onclick="sendReturnNotice()">Gửi thông báo trả đồ</button>
+          <button class="btn btn-ghost btn-full" id="donhangCancelBtn" style="display:none;" onclick="cancelReturnNoticeEdit()">Huỷ</button>
+        </div>
       </div>
 
       <div id="traDoHistoryFilter" style="display:none;">
@@ -541,9 +545,12 @@
 
     <!-- TAB 3: CHI PHÍ (Chủ) -->
     <div class="view" id="view-chiphi">
-      <h2 class="section-title">Ghi chi phí mới</h2>
+      <h2 class="section-title" id="expenseFormTitle">Ghi chi phí mới</h2>
       <div class="card">
-        <label class="field-label">Loại chi phí</label>
+        <label class="field-label">Ngày</label>
+        <input type="date" id="expenseDate">
+
+        <label class="field-label" style="margin-top:12px;">Loại chi phí</label>
         <select id="expenseCategory">
           <option>Nguyên vật liệu</option>
           <option>Điện</option>
@@ -562,7 +569,10 @@
         <label class="field-label" style="margin-top:12px;">Chi tiết</label>
         <input type="text" id="expenseNote" placeholder="VD: Mua bột giặt Omo 5kg x10 gói">
 
-        <button class="btn btn-in btn-full" style="margin-top:14px;" onclick="sendExpense()">Lưu chi phí</button>
+        <div class="row" style="margin-top:14px; gap:8px;">
+          <button class="btn btn-in btn-full" id="expenseSaveBtn" onclick="sendExpense()">Lưu chi phí</button>
+          <button class="btn btn-ghost btn-full" id="expenseCancelBtn" style="display:none;" onclick="cancelExpenseEdit()">Huỷ</button>
+        </div>
       </div>
 
       <h2 class="section-title">Lịch sử chi phí</h2>
@@ -723,7 +733,7 @@ async function doLogin(){
     document.getElementById('whoRole').textContent = currentUser.role === 'Chu' ? 'Chủ' : 'Nhân viên';
     document.querySelector('.tab-btn[data-tab="baocao"]').style.display = currentUser.role === 'Chu' ? 'flex' : 'none';
     document.querySelector('.tab-btn[data-tab="chiphi"]').style.display = currentUser.role === 'Chu' ? 'flex' : 'none';
-    document.getElementById('ownerHistoryCard').style.display = currentUser.role === 'Chu' ? 'block' : 'none';
+    document.getElementById('chamCongHistoryTitle').textContent = currentUser.role === 'Chu' ? 'Lịch sử chấm công' : 'Lịch sử chấm công của bạn';
     document.getElementById('traDoHistoryFilter').style.display = currentUser.role === 'Chu' ? 'block' : 'none';
     document.getElementById('myStatusCard').style.display = currentUser.role === 'Chu' ? 'none' : 'block';
     if(currentUser.role !== 'Chu') loadMyStatus();
@@ -761,7 +771,7 @@ function toVNDate(isoStr){
 (function initDateInputs(){
   const d = new Date();
   const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  ['chamCongHistoryFrom','chamCongHistoryTo','traDoHistoryFrom','traDoHistoryTo','reportFrom','reportTo','expenseHistoryFrom','expenseHistoryTo'].forEach(id=>{
+  ['chamCongHistoryFrom','chamCongHistoryTo','traDoHistoryFrom','traDoHistoryTo','reportFrom','reportTo','expenseHistoryFrom','expenseHistoryTo','expenseDate'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.value = iso;
   });
@@ -956,8 +966,52 @@ async function loadCheckInHistory(){
     const r = await apiCall('getCheckInHistory', { from: toVNDate(fromIso), to: toVNDate(toIso) });
     lastChamCongRecords = r.records || [];
     renderChamCongHistoryList();
+    renderLateSummary();
   } catch(err){
     el.innerHTML = `<div class="empty-state">Không tải được: ${err.message}</div>`;
+  }
+}
+
+// Tổng kết đi muộn trong khoảng ngày đang xem (tính từ dữ liệu vừa tải, không phụ thuộc bộ lọc Tất cả/Đi muộn).
+// Chủ: bảng theo từng nhân viên (số lần + tổng phút). Nhân viên: chỉ 1 dòng tổng của chính mình
+// (backend đã tự giới hạn getCheckInHistory chỉ trả về đúng bản ghi của NV đang đăng nhập).
+function renderLateSummary(){
+  const el = document.getElementById('lateSummaryWrap');
+  if(!currentUser){ el.innerHTML = ''; return; }
+  const lateRecords = lastChamCongRecords.filter(r => r.lateMinutes > 0);
+
+  if(currentUser.role === 'Chu'){
+    const byEmp = {};
+    lateRecords.forEach(r => {
+      if(!byEmp[r.employeeName]) byEmp[r.employeeName] = { count: 0, minutes: 0 };
+      byEmp[r.employeeName].count++;
+      byEmp[r.employeeName].minutes += r.lateMinutes;
+    });
+    const names = Object.keys(byEmp).sort((a,b) => byEmp[b].minutes - byEmp[a].minutes);
+    if(names.length === 0){
+      el.innerHTML = '<div class="empty-state">Không có ai đi muộn trong khoảng ngày này.</div>';
+      return;
+    }
+    el.innerHTML = `
+      <div style="font-weight:800;font-size:11.5px;color:var(--brand-dark);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Tổng kết đi muộn</div>
+      ${names.map(n => `
+        <div class="delivered-row">
+          <div class="who">${n}</div>
+          <div style="text-align:right;">
+            <div class="mono" style="font-weight:700;font-size:13px;">${byEmp[n].count} lần</div>
+            <div class="mono" style="font-weight:700;font-size:12px;color:var(--danger);">${byEmp[n].minutes} phút</div>
+          </div>
+        </div>
+      `).join('')}
+    `;
+  } else {
+    const totalMinutes = lateRecords.reduce((s,r) => s+r.lateMinutes, 0);
+    el.innerHTML = `
+      <div class="stat-card" style="text-align:center;">
+        <div class="num" style="color:${totalMinutes>0?'var(--danger)':'var(--brand-dark)'};">${totalMinutes} phút</div>
+        <div class="label">Tổng số phút đi muộn (${lateRecords.length} lần) trong khoảng ngày này</div>
+      </div>
+    `;
   }
 }
 
@@ -1145,6 +1199,8 @@ document.getElementById('billPhotoInput').addEventListener('change', function(e)
   e.target.value = '';
 });
 
+let editingOrderId = null;
+
 async function sendReturnNotice(){
   if(!currentUser){ alert('Vui lòng đăng nhập trước.'); return; }
   const customer = document.getElementById('customerName').value.trim();
@@ -1153,19 +1209,65 @@ async function sendReturnNotice(){
   if(!amount){ alert('Vui lòng nhập số tiền.'); return; }
   if(!selectedMethod){ alert('Vui lòng chọn hình thức thanh toán.'); return; }
 
-  showBusy('Đang gửi thông báo...');
+  showBusy(editingOrderId ? 'Đang cập nhật...' : 'Đang gửi thông báo...');
   try{
-    await apiCall('createReturnNotice', { customer, amount, method: selectedMethod, billPhoto: pendingBillPhoto });
-    document.getElementById('customerName').value = '';
-    document.getElementById('orderAmount').value = '';
-    selectedMethod = null;
-    pendingBillPhoto = null;
-    document.getElementById('methodCashBtn').classList.remove('selected');
-    document.getElementById('methodTransferBtn').classList.remove('selected');
-    document.getElementById('billPreviewWrap').innerHTML = '';
-    renderDeliveredOrders();
+    if(editingOrderId){
+      await apiCall('updateReturnNotice', { orderId: editingOrderId, customer, amount, method: selectedMethod, billPhoto: pendingBillPhoto });
+    } else {
+      await apiCall('createReturnNotice', { customer, amount, method: selectedMethod, billPhoto: pendingBillPhoto });
+    }
+    cancelReturnNoticeEdit();
+    renderDeliveredOrders(currentDeliveredRange);
   } catch(err){
-    alert('Không gửi được thông báo: ' + err.message);
+    alert('Không lưu được thông báo: ' + err.message);
+  } finally{
+    hideBusy();
+  }
+}
+
+// Chủ bấm "Sửa" trên 1 dòng đã trả đồ -> nạp lại dữ liệu vào form phía trên, chuyển form sang chế độ Sửa.
+// Không chọn ảnh bill mới thì ảnh cũ được giữ nguyên (backend chỉ thay ảnh khi có billPhoto mới gửi lên).
+function editReturnNotice(orderId){
+  const o = lastDeliveredNotices.find(x => x.orderId === orderId);
+  if(!o) return;
+  editingOrderId = orderId;
+  document.getElementById('customerName').value = o.customer;
+  document.getElementById('orderAmount').value = o.amount;
+  selectMethod(o.method);
+  pendingBillPhoto = null;
+  document.getElementById('billPreviewWrap').innerHTML = o.billUrl
+    ? `<a href="${o.billUrl}" target="_blank" style="font-size:12px;">Ảnh bill hiện tại (chạm để xem) — chọn "Chụp ảnh bill" để đổi ảnh khác</a>`
+    : '';
+  document.getElementById('donhangFormTitle').textContent = 'Sửa thông báo trả đồ';
+  document.getElementById('donhangSaveBtn').textContent = 'Cập nhật thông báo';
+  document.getElementById('donhangCancelBtn').style.display = 'flex';
+  const mainEl = document.querySelector('main');
+  if(mainEl) mainEl.scrollTop = 0;
+}
+
+function cancelReturnNoticeEdit(){
+  editingOrderId = null;
+  document.getElementById('customerName').value = '';
+  document.getElementById('orderAmount').value = '';
+  selectedMethod = null;
+  pendingBillPhoto = null;
+  document.getElementById('methodCashBtn').classList.remove('selected');
+  document.getElementById('methodTransferBtn').classList.remove('selected');
+  document.getElementById('billPreviewWrap').innerHTML = '';
+  document.getElementById('donhangFormTitle').textContent = 'Thông báo trả đồ cho khách';
+  document.getElementById('donhangSaveBtn').textContent = 'Gửi thông báo trả đồ';
+  document.getElementById('donhangCancelBtn').style.display = 'none';
+}
+
+async function deleteReturnNotice(orderId){
+  if(!confirm('Xoá thông báo trả đồ này?')) return;
+  showBusy('Đang xoá...');
+  try{
+    await apiCall('deleteReturnNotice', { orderId });
+    if(editingOrderId === orderId) cancelReturnNoticeEdit();
+    renderDeliveredOrders(currentDeliveredRange);
+  } catch(err){
+    alert('Không xoá được: ' + err.message);
   } finally{
     hideBusy();
   }
@@ -1221,11 +1323,17 @@ function renderDeliveredList(){
         <div class="who">${o.customer}</div>
         <div class="sub">${o.amount.toLocaleString('vi-VN')}đ${o.billUrl ? ` · <a href="${o.billUrl}" target="_blank">Xem bill</a>` : ''}${lastDeliveredIsOwner && o.employeeName ? ` · NV: ${o.employeeName}` : ''}</div>
       </div>
-      <div style="display:flex; align-items:center; gap:8px;">
-        ${o.method ? `<span class="method-tag">${o.method}</span>` : ''}
-        ${lastDeliveredIsOwner ? `<button class="confirm-btn ${o.confirmed?'yes':'no'}" onclick="toggleConfirm('${o.orderId}', ${!o.confirmed})">
-          ${o.confirmed ? 'Đã xác nhận ✓' : 'Xác nhận đã nhận tiền'}
-        </button>` : (o.confirmed ? '<span class="method-tag" style="background:#E4F3EC;color:var(--brand-dark);">Đã xác nhận</span>' : '<span class="method-tag">Chờ Chủ xác nhận</span>')}
+      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          ${o.method ? `<span class="method-tag">${o.method}</span>` : ''}
+          ${lastDeliveredIsOwner ? `<button class="confirm-btn ${o.confirmed?'yes':'no'}" onclick="toggleConfirm('${o.orderId}', ${!o.confirmed})">
+            ${o.confirmed ? 'Đã xác nhận ✓' : 'Xác nhận đã nhận tiền'}
+          </button>` : (o.confirmed ? '<span class="method-tag" style="background:#E4F3EC;color:var(--brand-dark);">Đã xác nhận</span>' : '<span class="method-tag">Chờ Chủ xác nhận</span>')}
+        </div>
+        ${lastDeliveredIsOwner ? `<div style="display:flex;gap:6px;">
+          <button class="confirm-btn no" onclick="editReturnNotice('${o.orderId}')">Sửa</button>
+          <button class="confirm-btn no" style="background:#FDECE6;color:var(--danger);" onclick="deleteReturnNotice('${o.orderId}')">Xoá</button>
+        </div>` : ''}
       </div>
     </div>
   `).join('');
@@ -1329,21 +1437,69 @@ function goToExpenseList(){
 }
 
 // ---------- chi phí ----------
+let editingExpenseId = null;
+
 async function sendExpense(){
   if(!currentUser){ alert('Vui lòng đăng nhập trước.'); return; }
+  const dateIso = document.getElementById('expenseDate').value;
   const category = document.getElementById('expenseCategory').value;
   const amount = parseInt(document.getElementById('expenseAmount').value.replace(/\D/g,'')) || 0;
   if(!amount){ alert('Vui lòng nhập số tiền.'); return; }
   const note = document.getElementById('expenseNote').value.trim();
+  const date = dateIso ? toVNDate(dateIso) : undefined;
 
-  showBusy('Đang lưu chi phí...');
+  showBusy(editingExpenseId ? 'Đang cập nhật chi phí...' : 'Đang lưu chi phí...');
   try{
-    await apiCall('createExpense', { category, amount, note });
-    document.getElementById('expenseAmount').value = '';
-    document.getElementById('expenseNote').value = '';
+    if(editingExpenseId){
+      await apiCall('updateExpense', { expenseId: editingExpenseId, date, category, amount, note });
+    } else {
+      await apiCall('createExpense', { date, category, amount, note });
+    }
+    cancelExpenseEdit();
     loadExpenseHistory();
   } catch(err){
     alert('Không lưu được chi phí: ' + err.message);
+  } finally{
+    hideBusy();
+  }
+}
+
+function editExpense(expenseId){
+  const r = lastExpenseRows.find(x => x.expenseId === expenseId);
+  if(!r) return;
+  editingExpenseId = expenseId;
+  const [d,m,y] = r.date.split('/');
+  document.getElementById('expenseDate').value = `${y}-${m}-${d}`;
+  document.getElementById('expenseCategory').value = r.category;
+  document.getElementById('expenseAmount').value = r.amount;
+  document.getElementById('expenseNote').value = r.note || '';
+  document.getElementById('expenseFormTitle').textContent = 'Sửa chi phí';
+  document.getElementById('expenseSaveBtn').textContent = 'Cập nhật chi phí';
+  document.getElementById('expenseCancelBtn').style.display = 'flex';
+  const mainEl = document.querySelector('main');
+  if(mainEl) mainEl.scrollTop = 0;
+}
+
+function cancelExpenseEdit(){
+  editingExpenseId = null;
+  document.getElementById('expenseFormTitle').textContent = 'Ghi chi phí mới';
+  document.getElementById('expenseSaveBtn').textContent = 'Lưu chi phí';
+  document.getElementById('expenseCancelBtn').style.display = 'none';
+  document.getElementById('expenseAmount').value = '';
+  document.getElementById('expenseNote').value = '';
+  const d = new Date();
+  document.getElementById('expenseDate').value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+async function deleteExpense(expenseId){
+  if(!confirm('Xoá khoản chi phí này?')) return;
+  showBusy('Đang xoá...');
+  try{
+    await apiCall('deleteExpense', { expenseId });
+    if(editingExpenseId === expenseId) cancelExpenseEdit();
+    loadExpenseHistory();
+  } catch(err){
+    alert('Không xoá được: ' + err.message);
   } finally{
     hideBusy();
   }
@@ -1385,7 +1541,13 @@ function renderExpenseList(){
         <div class="who">${r.category}</div>
         <div class="sub">${r.date}${r.note ? ' · '+r.note : ''}${r.employeeName ? ' · '+r.employeeName : ''}</div>
       </div>
-      <div class="mono" style="font-weight:700;color:var(--danger);white-space:nowrap;">${(r.amount||0).toLocaleString('vi-VN')}đ</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
+        <div class="mono" style="font-weight:700;color:var(--danger);white-space:nowrap;">${(r.amount||0).toLocaleString('vi-VN')}đ</div>
+        ${r.expenseId ? `<div style="display:flex;gap:6px;">
+          <button class="confirm-btn no" onclick="editExpense('${r.expenseId}')">Sửa</button>
+          <button class="confirm-btn no" style="background:#FDECE6;color:var(--danger);" onclick="deleteExpense('${r.expenseId}')">Xoá</button>
+        </div>` : ''}
+      </div>
     </div>
   `).join('');
 }
