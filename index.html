@@ -890,6 +890,14 @@ function timeToMinutesJS_(hhmm){
   return (Number(parts[0])||0)*60 + (Number(parts[1])||0);
 }
 
+// file.getUrl() từ Apps Script trả về link "xem trên Drive" (1 trang web), không nhúng được vào thẻ <img>.
+// Đổi sang link thumbnail trực tiếp bằng file ID thì trình duyệt mới hiển thị được ảnh.
+function toDriveThumbUrl_(url){
+  if(!url) return '';
+  const m = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  return m ? `https://drive.google.com/thumbnail?id=${m[1]}&sz=w200` : url;
+}
+
 async function loadAttendanceLog(){
   const el = document.getElementById('attendanceLog');
   if(!currentUser) return;
@@ -911,7 +919,7 @@ async function loadAttendanceLog(){
     el.innerHTML = events.map(ev => `
       <div class="polaroid">
         <div class="tape"></div>
-        ${ev.photo ? `<img src="${ev.photo}">` : `<div class="ph-fallback">📷</div>`}
+        ${ev.photo ? `<img src="${toDriveThumbUrl_(ev.photo)}" onerror="this.outerHTML='<div class=&quot;ph-fallback&quot;>📷</div>'">` : `<div class="ph-fallback">📷</div>`}
         <div class="meta">
           <div class="top-line">
             <span class="name">${ev.name}</span>
