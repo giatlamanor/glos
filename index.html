@@ -695,7 +695,6 @@ const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwPF2UWOAdaylTUjoCiM
 
 // ---------- state ----------
 let currentUser = null; // {name, role, pin}
-let attendance = [];   // local session log for display: {name, type:'in'|'out', time, photo}
 let pendingCheckType = null;
 
 // ---------- API helper ----------
@@ -738,6 +737,7 @@ async function doLogin(){
     document.getElementById('myStatusCard').style.display = currentUser.role === 'Chu' ? 'none' : 'block';
     if(currentUser.role !== 'Chu') loadMyStatus();
     loadShiftWeek();
+    loadAttendanceLog();
   } catch(err){
     errEl.textContent = 'Không kết nối được server (' + err.message + '). Kiểm tra WEBAPP_URL trong file Index có đúng với link Web App hiện tại (Deploy > Manage deployments) không.';
   }
@@ -809,7 +809,7 @@ function switchTab(name){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   if(name==='baocao') renderReport();
   if(name==='donhang') renderDeliveredOrders();
-  if(name==='chamcong') loadShiftWeek();
+  if(name==='chamcong'){ loadShiftWeek(); loadAttendanceLog(); }
 }
 
 // ---------- nén ảnh trước khi gửi ----------
@@ -851,18 +851,13 @@ function triggerCheck(type){
 }
 document.getElementById('photoInput').addEventListener('change', function(e){
   const file = e.target.files[0];
-  const name = currentUser.name;
-  const time = new Date();
-  const record = { name, type: pendingCheckType, time, photo:null };
 
   const finish = async (photoDataUrl) => {
-    record.photo = photoDataUrl;
-    attendance.unshift(record);
-    renderAttendance();
     showBusy('Đang lưu chấm công...');
     try{
       const res = await apiCall('checkinout', { type: pendingCheckType, photo: photoDataUrl });
       if(currentUser.role !== 'Chu') loadMyStatus();
+      loadAttendanceLog();
       if(pendingCheckType === 'in' && res.late){
         alert(`Bạn đã đến muộn ${res.lateMinutes} phút (ca ${res.ca}).`);
       }
@@ -886,27 +881,50 @@ document.getElementById('photoInput').addEventListener('change', function(e){
   e.target.value = '';
 });
 
-function renderAttendance(){
-  const el = document.getElementById('attendanceLog');
-  if(attendance.length===0){
-    el.innerHTML = '<div class="empty-state">Chưa có ai chấm công hôm nay.<br>Nhấn Check-in để bắt đầu.</div>';
-    return;
-  }
-  el.innerHTML = attendance.map(r=>`
-    <div class="polaroid">
-      <div class="tape"></div>
-      ${r.photo ? `<img src="${r.photo}">` : `<div class="ph-fallback">📷</div>`}
-      <div class="meta">
-        <div class="top-line">
-          <span class="name">${r.name}</span>
-          <span class="badge ${r.type==='in'?'badge-in':'badge-out'}">${r.type==='in'?'Check-in':'Check-out'}</span>
-        </div>
-        <div class="time mono">${r.time.toLocaleTimeString('vi-VN',{hour12:false})}</div>
-      </div>
-    </div>
-  `).join('');
+// "Nhật ký ảnh" lấy thẳng dữ liệu chấm công hôm nay từ server (Chủ thấy tất cả nhân viên,
+// nhân viên chỉ thấy của chính mình — backend getCheckInHistory đã tự giới hạn theo role).
+// Mỗi dòng trong sheet (1 ca) được tách thành tối đa 2 sự kiện: check-in và check-out, kèm đúng ảnh của sự kiện đó.
+function timeToMinutesJS_(hhmm){
+  if(!hhmm) return -1;
+  const parts = String(hhmm).split(':');
+  return (Number(parts[0])||0)*60 + (Number(parts[1])||0);
 }
-renderAttendance();
+
+async function loadAttendanceLog(){
+  const el = document.getElementById('attendanceLog');
+  if(!currentUser) return;
+  el.innerHTML = '<div class="empty-state">Đang tải...</div>';
+  try{
+    const r = await apiCall('getCheckInHistory', {});
+    const recs = r.records || [];
+    const events = [];
+    recs.forEach(rec => {
+      const photos = (rec.photo || '').split(' | ').filter(Boolean);
+      if(rec.checkIn) events.push({ name: rec.employeeName, type: 'in', time: rec.checkIn, photo: photos[0] || '' });
+      if(rec.checkOut) events.push({ name: rec.employeeName, type: 'out', time: rec.checkOut, photo: photos[1] || photos[0] || '' });
+    });
+    events.sort((a,b) => timeToMinutesJS_(b.time) - timeToMinutesJS_(a.time));
+    if(events.length === 0){
+      el.innerHTML = '<div class="empty-state">Chưa có ai chấm công hôm nay.<br>Nhấn Check-in để bắt đầu.</div>';
+      return;
+    }
+    el.innerHTML = events.map(ev => `
+      <div class="polaroid">
+        <div class="tape"></div>
+        ${ev.photo ? `<img src="${ev.photo}">` : `<div class="ph-fallback">📷</div>`}
+        <div class="meta">
+          <div class="top-line">
+            <span class="name">${ev.name}</span>
+            <span class="badge ${ev.type==='in'?'badge-in':'badge-out'}">${ev.type==='in'?'Check-in':'Check-out'}</span>
+          </div>
+          <div class="time mono">${ev.time}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch(err){
+    el.innerHTML = `<div class="empty-state">Không tải được: ${err.message}</div>`;
+  }
+}
 
 // ---------- trạng thái hôm nay (Nhân viên) ----------
 // Có thể có tối đa 2 dòng hôm nay (Sáng + Chiều) nếu nhân viên làm cả 2 ca -> hiện lần lượt từng ca.
