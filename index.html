@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -28,7 +28,10 @@
     --tape:#F7EFD9;
     --radius:16px;
   }
-  *{box-sizing:border-box;}
+  /* touch-action:manipulation tắt hẳn cử chỉ "double-tap để phóng to" của Safari trên MỌI phần tử —
+     đây mới là nguyên nhân thật sự khiến khung app bị lệch khi double-tap vào khoảng trống (Safari đôi khi
+     không tôn trọng đủ user-scalable=no ở viewport meta cho riêng cử chỉ double-tap này). */
+  *{box-sizing:border-box; touch-action:manipulation;}
   /* Ghim CỨNG html/body vào đúng khung nhìn bằng position:fixed;inset:0 — đây là cách chắc chắn nhất để
      trang KHÔNG BAO GIỜ tự cuộn/nảy/lệch trên iOS, kể cả khi overflow:hidden một mình không đủ (WebKit vẫn
      có thể để lọt hiệu ứng "nảy" đàn hồi ra ngoài dù đã overflow:hidden). position:fixed;inset:0 loại bỏ
