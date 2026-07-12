@@ -52,7 +52,9 @@
     width:100%;
     max-width:460px;
     height:100vh;
-    height:100dvh;
+    height:100svh; /* small viewport height: cố định theo mức viewport NHỎ NHẤT (thanh địa chỉ đang hiện) —
+      không tự tính lại khi thanh địa chỉ ẩn/hiện lúc chạm màn hình, nên khung app không bao giờ bị nhảy/lệch
+      (khác với 100dvh — dynamic viewport height — vốn tính lại LIÊN TỤC theo trạng thái thanh địa chỉ). */
     background:transparent;
     display:flex;
     flex-direction:column;
@@ -103,6 +105,8 @@
     padding:2px 18px 14px;
     overflow-y:auto;
     -webkit-overflow-scrolling:touch;
+    overscroll-behavior-y:contain; /* chặn hiệu ứng "nảy" khi cuộn hết đà lan ra ngoài khung app */
+    touch-action:pan-y;
     display:flex;
     flex-direction:column;
   }
@@ -499,7 +503,7 @@
         <input type="text" id="packageCustomerName" placeholder="VD: A. Huy 031">
 
         <label class="field-label" style="margin-top:12px;">Số tiền (VNĐ)</label>
-        <input type="number" id="packageAmount" placeholder="VD: 150000">
+        <input type="text" inputmode="numeric" id="packageAmount" placeholder="VD: 150.000">
 
         <div class="row" style="margin-top:14px; gap:8px;">
           <button class="btn btn-in btn-full" id="donggoiSaveBtn" onclick="sendPackage()">Lưu đóng gói</button>
@@ -541,7 +545,7 @@
         </div>
 
         <label class="field-label" style="margin-top:12px;">Số tiền (VNĐ)</label>
-        <input type="number" id="orderAmount" placeholder="VD: 150000">
+        <input type="text" inputmode="numeric" id="orderAmount" placeholder="VD: 150.000">
 
         <label class="field-label" style="margin-top:12px;">Hình thức thanh toán</label>
         <div class="row" style="gap:8px;">
@@ -606,7 +610,7 @@
         </select>
 
         <label class="field-label" style="margin-top:12px;">Số tiền (VNĐ)</label>
-        <input type="number" id="expenseAmount" placeholder="VD: 500000">
+        <input type="text" inputmode="numeric" id="expenseAmount" placeholder="VD: 500.000">
 
         <label class="field-label" style="margin-top:12px;">Chi tiết</label>
         <input type="text" id="expenseNote" placeholder="VD: Mua bột giặt Omo 5kg x10 gói">
@@ -725,18 +729,19 @@
 // ====== CONFIG ======
 const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwPF2UWOAdaylTUjoCiM7t_Qy2wFEK2u9jaY3icw9AhHrfLuSaZhdHi5Uk1gtjeAWxZQQ/exec';
 
-// ---------- khoá chiều cao khung app bằng JS (đáng tin cậy hơn CSS 100dvh trên vài trình duyệt) ----------
-// Một số điện thoại/Safari tính "100dvh" sai (còn dư khoảng trống dưới thanh tab, lộ màu nền ra ngoài).
-// Đặt chiều cao trực tiếp bằng window.innerHeight (chiều cao thực đang nhìn thấy) để luôn khớp chính xác.
+// ---------- khoá chiều cao khung app ----------
+// CSS đã khoá bằng 100svh (xem .app) — cố định theo viewport NHỎ NHẤT, không đổi khi thanh địa chỉ ẩn/hiện.
+// JS chỉ set 1 LẦN DUY NHẤT lúc tải trang (phòng khi trình duyệt cũ chưa hiểu đơn vị "svh") và khi XOAY MÀN
+// HÌNH thật sự — KHÔNG lắng nghe sự kiện "resize" liên tục nữa, vì chính việc lắng nghe "resize" liên tục
+// (để phản ứng với mọi lần thanh địa chỉ Safari ẩn/hiện, kể cả khi chỉ chạm vào khoảng trống) là nguyên
+// nhân khiến khung app bị nhảy/lệch lên xuống — mỗi lần resize là 1 lần ép lại chiều cao => 1 lần giật hình.
 (function lockAppHeight(){
   const appEl = document.querySelector('.app');
   function setH(){
     if(appEl) appEl.style.height = window.innerHeight + 'px';
   }
-  setH();
-  window.addEventListener('resize', setH);
+  if(!CSS.supports('height', '100svh')) setH(); // trình duyệt cũ không hiểu svh -> vẫn cần JS khoá tay
   window.addEventListener('orientationchange', () => setTimeout(setH, 150));
-  if(window.visualViewport) window.visualViewport.addEventListener('resize', setH);
 })();
 
 // ---------- state ----------
@@ -813,6 +818,22 @@ function toVNDate(isoStr){
   const [y,m,d] = isoStr.split('-');
   return `${d}/${m}/${y}`;
 }
+
+// ---------- định dạng số tiền: tự thêm dấu "." ngăn cách hàng nghìn ngay khi gõ ----------
+// Các ô số tiền là input type="text" (không phải number) để có thể hiển thị dấu chấm —
+// lúc lấy giá trị để gửi lên server vẫn dùng .replace(/\D/g,'') như cũ nên dấu chấm tự động bị bỏ, không ảnh hưởng dữ liệu.
+function formatVNMoney(n){
+  return (Number(n) || 0).toLocaleString('vi-VN');
+}
+function attachMoneyInput(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.addEventListener('input', () => {
+    const digits = el.value.replace(/\D/g,'');
+    el.value = digits ? formatVNMoney(digits) : '';
+  });
+}
+['orderAmount','packageAmount','expenseAmount'].forEach(attachMoneyInput);
 
 (function initDateInputs(){
   const d = new Date();
@@ -1264,7 +1285,7 @@ function editPackage(packageId){
   if(!p) return;
   editingPackageId = packageId;
   document.getElementById('packageCustomerName').value = p.customer;
-  document.getElementById('packageAmount').value = p.amount;
+  document.getElementById('packageAmount').value = formatVNMoney(p.amount);
   document.getElementById('donggoiFormTitle').textContent = 'Sửa đóng gói';
   document.getElementById('donggoiSaveBtn').textContent = 'Cập nhật đóng gói';
   document.getElementById('donggoiCancelBtn').style.display = 'flex';
@@ -1376,7 +1397,7 @@ function selectPackage(packageId){
   if(!p) return;
   selectedPackage = p;
   document.getElementById('customerName').value = p.customer;
-  document.getElementById('orderAmount').value = p.amount;
+  document.getElementById('orderAmount').value = formatVNMoney(p.amount);
   document.getElementById('selectedPackageName').textContent = `${p.customer} · ${p.amount.toLocaleString('vi-VN')}đ`;
   document.getElementById('selectedPackageSummary').style.display = 'flex';
   document.getElementById('packageSearchInput').style.display = 'none';
@@ -1462,7 +1483,7 @@ function editReturnNotice(orderId){
   document.getElementById('packagePickerWrap').style.display = 'none';
   document.getElementById('customerNameEditWrap').style.display = 'block';
   document.getElementById('customerName').value = o.customer;
-  document.getElementById('orderAmount').value = o.amount;
+  document.getElementById('orderAmount').value = formatVNMoney(o.amount);
   selectMethod(o.method);
   pendingBillPhoto = null;
   document.getElementById('billPreviewWrap').innerHTML = o.billUrl
@@ -1558,7 +1579,7 @@ function renderDeliveredList(){
         <div style="display:flex; align-items:center; gap:8px;">
           ${o.method ? `<span class="method-tag">${o.method}</span>` : ''}
           ${lastDeliveredIsOwner ? `<button class="confirm-btn ${o.confirmed?'yes':'no'}" onclick="toggleConfirm('${o.orderId}', ${!o.confirmed})">
-            ${o.confirmed ? 'Đã xác nhận ✓' : 'Xác nhận đã nhận tiền'}
+            ${o.confirmed ? 'Đã xác nhận ✓' : 'Chờ xác nhận'}
           </button>` : (o.confirmed ? '<span class="method-tag" style="background:#E4F3EC;color:var(--brand-dark);">Đã xác nhận</span>' : '<span class="method-tag">Chờ Chủ xác nhận</span>')}
         </div>
         ${lastDeliveredIsOwner ? `<div style="display:flex;gap:6px;">
@@ -1702,7 +1723,7 @@ function editExpense(expenseId){
   const [d,m,y] = r.date.split('/');
   document.getElementById('expenseDate').value = `${y}-${m}-${d}`;
   document.getElementById('expenseCategory').value = r.category;
-  document.getElementById('expenseAmount').value = r.amount;
+  document.getElementById('expenseAmount').value = formatVNMoney(r.amount);
   document.getElementById('expenseNote').value = r.note || '';
   document.getElementById('expenseFormTitle').textContent = 'Sửa chi phí';
   document.getElementById('expenseSaveBtn').textContent = 'Cập nhật chi phí';
