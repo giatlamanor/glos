@@ -491,12 +491,54 @@
       </div>
     </div>
 
-    <!-- TAB 2: TRẢ ĐỒ -->
+    <!-- TAB 2: ĐÓNG GÓI -->
+    <div class="view" id="view-donggoi">
+      <h2 class="section-title" id="donggoiFormTitle">Đóng gói đồ mới</h2>
+      <div class="card">
+        <label class="field-label">Tên khách hàng</label>
+        <input type="text" id="packageCustomerName" placeholder="VD: A. Huy 031">
+
+        <label class="field-label" style="margin-top:12px;">Số tiền (VNĐ)</label>
+        <input type="number" id="packageAmount" placeholder="VD: 150000">
+
+        <div class="row" style="margin-top:14px; gap:8px;">
+          <button class="btn btn-in btn-full" id="donggoiSaveBtn" onclick="sendPackage()">Lưu đóng gói</button>
+          <button class="btn btn-ghost btn-full" id="donggoiCancelBtn" style="display:none;" onclick="cancelPackageEdit()">Huỷ</button>
+        </div>
+      </div>
+
+      <h2 class="section-title">Lịch sử đóng gói</h2>
+      <div class="card">
+        <label class="field-label">Từ ngày</label>
+        <input type="date" id="packageHistoryFrom">
+        <label class="field-label" style="margin-top:10px;">Đến ngày</label>
+        <input type="date" id="packageHistoryTo">
+        <button class="btn btn-ghost btn-full btn-sm" style="margin-top:10px;" onclick="loadPackageHistory()">Xem</button>
+      </div>
+      <div id="packageHistoryResult"></div>
+    </div>
+
+    <!-- TAB 3: TRẢ ĐỒ -->
     <div class="view" id="view-donhang">
       <h2 class="section-title" id="donhangFormTitle">Thông báo trả đồ cho khách</h2>
       <div class="card">
-        <label class="field-label">Tên khách hàng</label>
-        <input type="text" id="customerName" placeholder="VD: A. Huy 031">
+        <div id="packagePickerWrap">
+          <label class="field-label">Chọn khách hàng đã đóng gói</label>
+          <input type="text" id="packageSearchInput" placeholder="Tìm theo tên khách hàng..." oninput="renderPendingPackageList()">
+          <div id="pendingPackageList" style="margin-top:8px;max-height:220px;overflow-y:auto;"></div>
+          <div id="selectedPackageSummary" class="delivered-row" style="display:none;margin-top:8px;">
+            <div>
+              <div class="who" id="selectedPackageName"></div>
+              <div class="sub">Đã chọn từ đóng gói</div>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="clearSelectedPackage()">Đổi</button>
+          </div>
+        </div>
+
+        <div id="customerNameEditWrap" style="display:none;">
+          <label class="field-label">Tên khách hàng</label>
+          <input type="text" id="customerName" placeholder="VD: A. Huy 031">
+        </div>
 
         <label class="field-label" style="margin-top:12px;">Số tiền (VNĐ)</label>
         <input type="number" id="orderAmount" placeholder="VD: 150000">
@@ -521,8 +563,8 @@
         </div>
       </div>
 
-      <div id="traDoHistoryFilter" style="display:none;">
-        <h2 class="section-title">Xem lại theo ngày (Chủ xem)</h2>
+      <div id="traDoHistoryFilter">
+        <h2 class="section-title">Xem lại theo ngày</h2>
         <div class="card">
           <label class="field-label">Từ ngày</label>
           <input type="date" id="traDoHistoryFrom">
@@ -543,7 +585,7 @@
       <div id="deliveredList"></div>
     </div>
 
-    <!-- TAB 3: CHI PHÍ (Chủ) -->
+    <!-- TAB 4: CHI PHÍ (Chủ) -->
     <div class="view" id="view-chiphi">
       <h2 class="section-title" id="expenseFormTitle">Ghi chi phí mới</h2>
       <div class="card">
@@ -601,7 +643,7 @@
       <div id="expenseHistoryResult"></div>
     </div>
 
-    <!-- TAB 4: BÁO CÁO -->
+    <!-- TAB 5: BÁO CÁO -->
     <div class="view" id="view-baocao">
       <h2 class="section-title">Xem báo cáo theo khoảng ngày</h2>
       <div class="card">
@@ -658,6 +700,10 @@
     <button class="tab-btn active" data-tab="chamcong" onclick="switchTab('chamcong')">
       <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3.2 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       Chấm công
+    </button>
+    <button class="tab-btn" data-tab="donggoi" onclick="switchTab('donggoi')">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 7l9-4 9 4-9 4-9-4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M3 7v10l9 4 9-4V7M12 11v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+      Đóng gói
     </button>
     <button class="tab-btn" data-tab="donhang" onclick="switchTab('donhang')">
       <svg viewBox="0 0 24 24" fill="none"><path d="M4 8h3l1.5-2.5h7L17 8h3v11H4V8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="3" stroke="currentColor" stroke-width="1.8"/></svg>
@@ -733,11 +779,11 @@ async function doLogin(){
     document.querySelector('.tab-btn[data-tab="baocao"]').style.display = currentUser.role === 'Chu' ? 'flex' : 'none';
     document.querySelector('.tab-btn[data-tab="chiphi"]').style.display = currentUser.role === 'Chu' ? 'flex' : 'none';
     document.getElementById('chamCongHistoryTitle').textContent = currentUser.role === 'Chu' ? 'Lịch sử chấm công' : 'Lịch sử chấm công của bạn';
-    document.getElementById('traDoHistoryFilter').style.display = currentUser.role === 'Chu' ? 'block' : 'none';
     document.getElementById('myStatusCard').style.display = currentUser.role === 'Chu' ? 'none' : 'block';
     if(currentUser.role !== 'Chu') loadMyStatus();
     loadShiftWeek();
     loadAttendanceLog();
+    loadPendingPackages();
   } catch(err){
     errEl.textContent = 'Không kết nối được server (' + err.message + '). Kiểm tra WEBAPP_URL trong file Index có đúng với link Web App hiện tại (Deploy > Manage deployments) không.';
   }
@@ -771,7 +817,7 @@ function toVNDate(isoStr){
 (function initDateInputs(){
   const d = new Date();
   const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  ['chamCongHistoryFrom','chamCongHistoryTo','traDoHistoryFrom','traDoHistoryTo','reportFrom','reportTo','expenseHistoryFrom','expenseHistoryTo','expenseDate'].forEach(id=>{
+  ['chamCongHistoryFrom','chamCongHistoryTo','traDoHistoryFrom','traDoHistoryTo','reportFrom','reportTo','expenseHistoryFrom','expenseHistoryTo','expenseDate','packageHistoryFrom','packageHistoryTo'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.value = iso;
   });
@@ -808,7 +854,7 @@ function switchTab(name){
   document.getElementById('view-'+name).classList.add('active');
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   if(name==='baocao') renderReport();
-  if(name==='donhang') renderDeliveredOrders();
+  if(name==='donhang'){ renderDeliveredOrders(); loadPendingPackages(); }
   if(name==='chamcong'){ loadShiftWeek(); loadAttendanceLog(); }
 }
 
@@ -1184,6 +1230,171 @@ async function saveShiftWeek(){
   }
 }
 
+// ---------- đóng gói đồ ----------
+let editingPackageId = null;
+let lastPackageRows = [];
+let lastPackageIsOwner = false;
+
+async function sendPackage(){
+  if(!currentUser){ alert('Vui lòng đăng nhập trước.'); return; }
+  const customer = document.getElementById('packageCustomerName').value.trim();
+  if(!customer){ alert('Vui lòng nhập tên khách hàng.'); return; }
+  const amount = parseInt(document.getElementById('packageAmount').value.replace(/\D/g,'')) || 0;
+  if(!amount){ alert('Vui lòng nhập số tiền.'); return; }
+
+  showBusy(editingPackageId ? 'Đang cập nhật...' : 'Đang lưu đóng gói...');
+  try{
+    if(editingPackageId){
+      await apiCall('updatePackage', { packageId: editingPackageId, customer, amount });
+    } else {
+      await apiCall('createPackage', { customer, amount });
+    }
+    cancelPackageEdit();
+    loadPackageHistory();
+    loadPendingPackages();
+  } catch(err){
+    alert('Không lưu được: ' + err.message);
+  } finally{
+    hideBusy();
+  }
+}
+
+function editPackage(packageId){
+  const p = lastPackageRows.find(x => x.packageId === packageId);
+  if(!p) return;
+  editingPackageId = packageId;
+  document.getElementById('packageCustomerName').value = p.customer;
+  document.getElementById('packageAmount').value = p.amount;
+  document.getElementById('donggoiFormTitle').textContent = 'Sửa đóng gói';
+  document.getElementById('donggoiSaveBtn').textContent = 'Cập nhật đóng gói';
+  document.getElementById('donggoiCancelBtn').style.display = 'flex';
+  const mainEl = document.querySelector('main');
+  if(mainEl) mainEl.scrollTop = 0;
+}
+
+function cancelPackageEdit(){
+  editingPackageId = null;
+  document.getElementById('packageCustomerName').value = '';
+  document.getElementById('packageAmount').value = '';
+  document.getElementById('donggoiFormTitle').textContent = 'Đóng gói đồ mới';
+  document.getElementById('donggoiSaveBtn').textContent = 'Lưu đóng gói';
+  document.getElementById('donggoiCancelBtn').style.display = 'none';
+}
+
+async function deletePackage(packageId){
+  if(!confirm('Xoá đơn đóng gói này?')) return;
+  showBusy('Đang xoá...');
+  try{
+    await apiCall('deletePackage', { packageId });
+    if(editingPackageId === packageId) cancelPackageEdit();
+    loadPackageHistory();
+    loadPendingPackages();
+  } catch(err){
+    alert('Không xoá được: ' + err.message);
+  } finally{
+    hideBusy();
+  }
+}
+
+async function loadPackageHistory(){
+  if(!currentUser) return;
+  const fromIso = document.getElementById('packageHistoryFrom').value;
+  const toIso = document.getElementById('packageHistoryTo').value;
+  const el = document.getElementById('packageHistoryResult');
+  if(!fromIso || !toIso){ el.innerHTML = '<div class="empty-state">Vui lòng chọn khoảng ngày.</div>'; return; }
+  el.innerHTML = 'Đang tải...';
+  try{
+    const r = await apiCall('getPackages', { from: toVNDate(fromIso), to: toVNDate(toIso) });
+    lastPackageRows = r.rows || [];
+    lastPackageIsOwner = r.isOwner;
+    renderPackageHistoryList();
+  } catch(err){
+    el.innerHTML = `<div class="empty-state">Không tải được: ${err.message}</div>`;
+  }
+}
+
+function renderPackageHistoryList(){
+  const el = document.getElementById('packageHistoryResult');
+  if(lastPackageRows.length === 0){
+    el.innerHTML = '<div class="empty-state">Không có đơn đóng gói nào trong khoảng ngày này.</div>';
+    return;
+  }
+  el.innerHTML = lastPackageRows.map(p => `
+    <div class="delivered-row">
+      <div>
+        <div class="who">${p.customer}</div>
+        <div class="sub">${p.date}${p.time ? ' '+p.time : ''} · ${p.amount.toLocaleString('vi-VN')}đ${p.employeeName ? ' · NV: '+p.employeeName : ''}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+        <span class="method-tag" style="${p.delivered ? 'background:#E4F3EC;color:var(--brand-dark);' : ''}">${p.delivered ? 'Đã trả đồ' : 'Chưa trả đồ'}</span>
+        ${lastPackageIsOwner ? `<div style="display:flex;gap:6px;">
+          <button class="confirm-btn no" onclick="editPackage('${p.packageId}')">Sửa</button>
+          <button class="confirm-btn no" style="background:#FDECE6;color:var(--danger);" onclick="deletePackage('${p.packageId}')">Xoá</button>
+        </div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ---------- picker chọn đơn đã đóng gói (dùng ở bước Trả đồ) ----------
+let pendingPackages = [];
+let selectedPackage = null;
+
+async function loadPendingPackages(){
+  if(!currentUser) return;
+  try{
+    const r = await apiCall('getPendingPackages', {});
+    pendingPackages = r.rows || [];
+  } catch(err){
+    pendingPackages = [];
+  }
+  renderPendingPackageList();
+}
+
+function renderPendingPackageList(){
+  const wrap = document.getElementById('pendingPackageList');
+  if(!wrap) return;
+  const searchEl = document.getElementById('packageSearchInput');
+  const term = (searchEl && searchEl.value || '').trim().toLowerCase();
+  const matches = pendingPackages.filter(p => !term || p.customer.toLowerCase().includes(term));
+  if(matches.length === 0){
+    wrap.innerHTML = '<div class="empty-state">Không có đơn đóng gói nào đang chờ trả đồ.</div>';
+    return;
+  }
+  wrap.innerHTML = matches.map(p => `
+    <div class="delivered-row" style="cursor:pointer;" onclick="selectPackage('${p.packageId}')">
+      <div>
+        <div class="who">${p.customer}</div>
+        <div class="sub">${p.date} · ${p.amount.toLocaleString('vi-VN')}đ${p.employeeName ? ' · NV đóng gói: '+p.employeeName : ''}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectPackage(packageId){
+  const p = pendingPackages.find(x => x.packageId === packageId);
+  if(!p) return;
+  selectedPackage = p;
+  document.getElementById('customerName').value = p.customer;
+  document.getElementById('orderAmount').value = p.amount;
+  document.getElementById('selectedPackageName').textContent = `${p.customer} · ${p.amount.toLocaleString('vi-VN')}đ`;
+  document.getElementById('selectedPackageSummary').style.display = 'flex';
+  document.getElementById('packageSearchInput').style.display = 'none';
+  document.getElementById('pendingPackageList').style.display = 'none';
+}
+
+function clearSelectedPackage(){
+  selectedPackage = null;
+  document.getElementById('customerName').value = '';
+  document.getElementById('orderAmount').value = '';
+  document.getElementById('selectedPackageSummary').style.display = 'none';
+  const searchEl = document.getElementById('packageSearchInput');
+  searchEl.style.display = '';
+  searchEl.value = '';
+  document.getElementById('pendingPackageList').style.display = '';
+  renderPendingPackageList();
+}
+
 // ---------- thông báo trả đồ ----------
 let selectedMethod = null;
 let pendingBillPhoto = null;
@@ -1216,6 +1427,7 @@ let editingOrderId = null;
 
 async function sendReturnNotice(){
   if(!currentUser){ alert('Vui lòng đăng nhập trước.'); return; }
+  if(!editingOrderId && !selectedPackage){ alert('Vui lòng chọn khách hàng đã đóng gói.'); return; }
   const customer = document.getElementById('customerName').value.trim();
   if(!customer){ alert('Vui lòng nhập tên khách hàng.'); return; }
   const amount = parseInt(document.getElementById('orderAmount').value.replace(/\D/g,'')) || 0;
@@ -1227,10 +1439,11 @@ async function sendReturnNotice(){
     if(editingOrderId){
       await apiCall('updateReturnNotice', { orderId: editingOrderId, customer, amount, method: selectedMethod, billPhoto: pendingBillPhoto });
     } else {
-      await apiCall('createReturnNotice', { customer, amount, method: selectedMethod, billPhoto: pendingBillPhoto });
+      await apiCall('createReturnNotice', { customer, amount, method: selectedMethod, billPhoto: pendingBillPhoto, packageId: selectedPackage.packageId });
     }
     cancelReturnNoticeEdit();
     renderDeliveredOrders(currentDeliveredRange);
+    loadPendingPackages();
   } catch(err){
     alert('Không lưu được thông báo: ' + err.message);
   } finally{
@@ -1240,10 +1453,14 @@ async function sendReturnNotice(){
 
 // Chủ bấm "Sửa" trên 1 dòng đã trả đồ -> nạp lại dữ liệu vào form phía trên, chuyển form sang chế độ Sửa.
 // Không chọn ảnh bill mới thì ảnh cũ được giữ nguyên (backend chỉ thay ảnh khi có billPhoto mới gửi lên).
+// Sửa thông báo đã có KHÔNG cần chọn lại đơn đóng gói (đây là sửa giao dịch đã chốt, không phải tạo mới) —
+// nên chuyển sang hiện ô tên khách hàng dạng chữ tự do, ẩn phần chọn đóng gói đi.
 function editReturnNotice(orderId){
   const o = lastDeliveredNotices.find(x => x.orderId === orderId);
   if(!o) return;
   editingOrderId = orderId;
+  document.getElementById('packagePickerWrap').style.display = 'none';
+  document.getElementById('customerNameEditWrap').style.display = 'block';
   document.getElementById('customerName').value = o.customer;
   document.getElementById('orderAmount').value = o.amount;
   selectMethod(o.method);
@@ -1260,8 +1477,9 @@ function editReturnNotice(orderId){
 
 function cancelReturnNoticeEdit(){
   editingOrderId = null;
-  document.getElementById('customerName').value = '';
-  document.getElementById('orderAmount').value = '';
+  clearSelectedPackage();
+  document.getElementById('packagePickerWrap').style.display = 'block';
+  document.getElementById('customerNameEditWrap').style.display = 'none';
   selectedMethod = null;
   pendingBillPhoto = null;
   document.getElementById('methodCashBtn').classList.remove('selected');
