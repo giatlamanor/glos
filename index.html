@@ -783,10 +783,23 @@ async function doLogin(){
     document.querySelector('.tab-btn[data-tab="chiphi"]').style.display = currentUser.role === 'Chu' ? 'flex' : 'none';
     document.getElementById('chamCongHistoryTitle').textContent = currentUser.role === 'Chu' ? 'Lịch sử chấm công' : 'Lịch sử chấm công của bạn';
     document.getElementById('myStatusCard').style.display = currentUser.role === 'Chu' ? 'none' : 'block';
-    if(currentUser.role !== 'Chu') loadMyStatus();
-    loadShiftWeek();
-    loadAttendanceLog();
-    loadPendingPackages();
+    // Gộp 3 lệnh (trạng thái/lịch sử chấm công hôm nay + lịch xếp ca tuần + đóng gói chờ trả đồ)
+    // thành 1 lần gọi duy nhất thay vì bắn riêng từng lệnh — đỡ chậm hẳn lúc vừa đăng nhập.
+    if(!shiftWeekStart) shiftWeekStart = mondayOf_(new Date());
+    const shiftFrom = fmtVN_(shiftWeekStart);
+    const shiftTo = fmtVN_(addDays_(shiftWeekStart, 6));
+    try{
+      const bundle = await apiCall('getLoginBundle', { shiftFrom, shiftTo });
+      if(currentUser.role !== 'Chu') loadMyStatus(bundle.checkInHistory);
+      loadAttendanceLog(bundle.checkInHistory);
+      loadShiftWeek(bundle.shiftWeek);
+      loadPendingPackages(bundle.pendingPackages);
+    } catch(err){
+      if(currentUser.role !== 'Chu') loadMyStatus();
+      loadShiftWeek();
+      loadAttendanceLog();
+      loadPendingPackages();
+    }
   } catch(err){
     errEl.textContent = 'Không kết nối được server (' + err.message + '). Kiểm tra WEBAPP_URL trong file Index có đúng với link Web App hiện tại (Deploy > Manage deployments) không.';
   }
@@ -873,8 +886,24 @@ function switchTab(name){
   document.getElementById('view-'+name).classList.add('active');
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   if(name==='baocao') renderReport();
-  if(name==='donhang'){ renderDeliveredOrders(); loadPendingPackages(); }
-  if(name==='chamcong'){ loadShiftWeek(); loadAttendanceLog(); }
+  if(name==='donhang') refreshDonHangTab(null);
+  if(name==='chamcong') refreshChamCongTab();
+}
+
+// Gọi API "gộp" cho tab Chấm công — lịch xếp ca tuần đang xem + lịch sử chấm công hôm nay, trong 1 lần gọi.
+async function refreshChamCongTab(){
+  if(!currentUser) return;
+  if(!shiftWeekStart) shiftWeekStart = mondayOf_(new Date());
+  const shiftFrom = fmtVN_(shiftWeekStart);
+  const shiftTo = fmtVN_(addDays_(shiftWeekStart, 6));
+  try{
+    const r = await apiCall('getChamCongTabBundle', { shiftFrom, shiftTo });
+    loadShiftWeek(r.shiftWeek);
+    loadAttendanceLog(r.checkInHistory);
+  } catch(err){
+    loadShiftWeek();
+    loadAttendanceLog();
+  }
 }
 
 // ---------- nén ảnh trước khi gửi ----------
@@ -963,12 +992,12 @@ function toDriveThumbUrl_(url){
   return m ? `https://drive.google.com/thumbnail?id=${m[1]}&sz=w200` : url;
 }
 
-async function loadAttendanceLog(){
+async function loadAttendanceLog(dataOverride){
   const el = document.getElementById('attendanceLog');
   if(!currentUser) return;
-  el.innerHTML = '<div class="empty-state">Đang tải...</div>';
+  if(!dataOverride) el.innerHTML = '<div class="empty-state">Đang tải...</div>';
   try{
-    const r = await apiCall('getCheckInHistory', {});
+    const r = dataOverride || await apiCall('getCheckInHistory', {});
     const recs = r.records || [];
     const events = [];
     recs.forEach(rec => {
@@ -1001,11 +1030,11 @@ async function loadAttendanceLog(){
 
 // ---------- trạng thái hôm nay (Nhân viên) ----------
 // Có thể có tối đa 2 dòng hôm nay (Sáng + Chiều) nếu nhân viên làm cả 2 ca -> hiện lần lượt từng ca.
-async function loadMyStatus(){
+async function loadMyStatus(dataOverride){
   const el = document.getElementById('myStatusContent');
   if(!el) return;
   try{
-    const r = await apiCall('getCheckInHistory', {});
+    const r = dataOverride || await apiCall('getCheckInHistory', {});
     const recs = r.records || [];
     if(recs.length === 0){
       el.innerHTML = '<div class="empty-state">Bạn chưa chấm công hôm nay.<br>Nhấn Check-in để bắt đầu ca.</div>';
@@ -1164,16 +1193,16 @@ async function ensureEmployeeList(){
   return employeeListCache;
 }
 
-async function loadShiftWeek(){
+async function loadShiftWeek(dataOverride){
   if(!currentUser) return;
   if(!shiftWeekStart) shiftWeekStart = mondayOf_(new Date());
   const from = fmtVN_(shiftWeekStart);
   const to = fmtVN_(addDays_(shiftWeekStart, 6));
   document.getElementById('shiftWeekLabel').textContent = `${from.slice(0,5)} - ${to}`;
   const gridWrap = document.getElementById('shiftGridWrap');
-  gridWrap.innerHTML = '<div class="empty-state">Đang tải...</div>';
+  if(!dataOverride) gridWrap.innerHTML = '<div class="empty-state">Đang tải...</div>';
   try{
-    const r = await apiCall('getShiftRange', { from, to });
+    const r = dataOverride || await apiCall('getShiftRange', { from, to });
     await renderShiftWeek(r.rows || [], r.isOwner, from);
   } catch(err){
     gridWrap.innerHTML = `<div class="empty-state">Không tải được: ${err.message}</div>`;
@@ -1269,8 +1298,7 @@ async function sendPackage(){
       await apiCall('createPackage', { customer, amount });
     }
     cancelPackageEdit();
-    loadPackageHistory();
-    loadPendingPackages();
+    refreshPackageTab();
   } catch(err){
     alert('Không lưu được: ' + err.message);
   } finally{
@@ -1306,8 +1334,7 @@ async function deletePackage(packageId){
   try{
     await apiCall('deletePackage', { packageId });
     if(editingPackageId === packageId) cancelPackageEdit();
-    loadPackageHistory();
-    loadPendingPackages();
+    refreshPackageTab();
   } catch(err){
     alert('Không xoá được: ' + err.message);
   } finally{
@@ -1315,20 +1342,49 @@ async function deletePackage(packageId){
   }
 }
 
-async function loadPackageHistory(){
+async function loadPackageHistory(dataOverride){
   if(!currentUser) return;
   const fromIso = document.getElementById('packageHistoryFrom').value;
   const toIso = document.getElementById('packageHistoryTo').value;
   const el = document.getElementById('packageHistoryResult');
   if(!fromIso || !toIso){ el.innerHTML = '<div class="empty-state">Vui lòng chọn khoảng ngày.</div>'; return; }
-  el.innerHTML = 'Đang tải...';
+  if(!dataOverride) el.innerHTML = 'Đang tải...';
   try{
-    const r = await apiCall('getPackages', { from: toVNDate(fromIso), to: toVNDate(toIso) });
+    const r = dataOverride || await apiCall('getPackages', { from: toVNDate(fromIso), to: toVNDate(toIso) });
     lastPackageRows = r.rows || [];
     lastPackageIsOwner = r.isOwner;
     renderPackageHistoryList();
   } catch(err){
     el.innerHTML = `<div class="empty-state">Không tải được: ${err.message}</div>`;
+  }
+}
+
+// Gọi API "gộp" (bundle) thay vì nhiều lệnh rời — dùng khoảng ngày đang xem ở lịch sử đóng gói.
+async function refreshPackageTab(){
+  const fromIso = document.getElementById('packageHistoryFrom').value;
+  const toIso = document.getElementById('packageHistoryTo').value;
+  const params = (fromIso && toIso) ? { from: toVNDate(fromIso), to: toVNDate(toIso) } : {};
+  try{
+    const r = await apiCall('getPackageTabBundle', params);
+    if(r.packages) loadPackageHistory(r.packages);
+    loadPendingPackages(r.pendingPackages);
+  } catch(err){
+    loadPackageHistory();
+    loadPendingPackages();
+  }
+}
+
+// Gọi API "gộp" cho tab Trả đồ — dùng khoảng ngày hiện đang xem (currentDeliveredRange), hoặc hôm nay nếu chưa lọc.
+async function refreshDonHangTab(rangeOverride){
+  const range = rangeOverride !== undefined ? rangeOverride : currentDeliveredRange;
+  const params = range ? { from: range.from, to: range.to } : {};
+  try{
+    const r = await apiCall('getDonHangTabBundle', params);
+    renderDeliveredOrders(range, r.notices);
+    loadPendingPackages(r.pendingPackages);
+  } catch(err){
+    renderDeliveredOrders(range);
+    loadPendingPackages();
   }
 }
 
@@ -1359,10 +1415,10 @@ function renderPackageHistoryList(){
 let pendingPackages = [];
 let selectedPackage = null;
 
-async function loadPendingPackages(){
+async function loadPendingPackages(dataOverride){
   if(!currentUser) return;
   try{
-    const r = await apiCall('getPendingPackages', {});
+    const r = dataOverride || await apiCall('getPendingPackages', {});
     pendingPackages = r.rows || [];
   } catch(err){
     pendingPackages = [];
@@ -1461,8 +1517,7 @@ async function sendReturnNotice(){
       await apiCall('createReturnNotice', { customer, amount, method: selectedMethod, billPhoto: pendingBillPhoto, packageId: selectedPackage.packageId });
     }
     cancelReturnNoticeEdit();
-    renderDeliveredOrders(currentDeliveredRange);
-    loadPendingPackages();
+    refreshDonHangTab();
   } catch(err){
     alert('Không lưu được thông báo: ' + err.message);
   } finally{
@@ -1517,7 +1572,7 @@ async function deleteReturnNotice(orderId){
   try{
     await apiCall('deleteReturnNotice', { orderId });
     if(editingOrderId === orderId) cancelReturnNoticeEdit();
-    renderDeliveredOrders(currentDeliveredRange);
+    refreshDonHangTab();
   } catch(err){
     alert('Không xoá được: ' + err.message);
   } finally{
@@ -1531,14 +1586,14 @@ let deliveredFilter = 'all'; // 'all' | 'unconfirmed'
 let lastDeliveredNotices = [];
 let lastDeliveredIsOwner = false;
 
-async function renderDeliveredOrders(rangeOverride){
+async function renderDeliveredOrders(rangeOverride, dataOverride){
   if(!currentUser) return;
   currentDeliveredRange = rangeOverride || null;
   const el = document.getElementById('deliveredList');
   const titleEl = document.getElementById('deliveredListTitle');
   try{
     const params = rangeOverride ? { from: rangeOverride.from, to: rangeOverride.to } : {};
-    const r = await apiCall('getReturnNotices', params);
+    const r = dataOverride || await apiCall('getReturnNotices', params);
     if(titleEl) titleEl.textContent = rangeOverride
       ? (rangeOverride.from === rangeOverride.to ? `Đã trả đồ ngày ${rangeOverride.from}` : `Đã trả đồ ${rangeOverride.from} - ${rangeOverride.to}`)
       : 'Đã trả đồ hôm nay';
